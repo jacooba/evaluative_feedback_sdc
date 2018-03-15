@@ -12,28 +12,25 @@ INPUT_DEPTH = 3
 INPUT_MEAN = 256.0/2.0
 INPUT_STD = 256.0/2.0
 
-#TODO
+#TODO 
 DROP_RATE = 0.0
 BATCH_NORM = False
 
 NUM_EPOCHS = 2
-LRATE = 0.01
-BATCH_SIZE = 50
+LRATE = 0.000001
+BATCH_SIZE = 100
 
 CONV_CHANNELS = []
 CONV_KERNELS = []
 CONV_STRIDES = []
 
-FC_CHANNELS = [100]
+FC_CHANNELS = [20]
 
 IMAGE_INPUT_TENSOR_NAME = 'Mul'
-POSSIBLE_BOTTLENECK_TENSORS = ['conv'] + ['conv_%d/Conv2D:0' % i for i in range(1, 5)] \
-    + ['mixed'] + ['mixed_%d/join:0' % i for i in range(1, 11)]
-IDX_BOTTLENECK = -1
-BOTTLENECK_TENSOR_NAME = POSSIBLE_BOTTLENECK_TENSORS[IDX_BOTTLENECK]
+BOTTLENECK_TENSOR_NAME = "conv_4/Conv2D:0" #"mixed_10/join:0" #'pool_3/_reshape:0'
 
-SUMMARY_SAVE_FREQ = 50
-MODEL_SAVE_FREQ = 1000
+SUMMARY_SAVE_FREQ = 2
+MODEL_SAVE_FREQ = 20
 
 INCEPTION_DIR = "inception"
 INCEPTION_PATH = os.path.join(INCEPTION_DIR, 'classify_image_graph_def.pb')
@@ -52,3 +49,4 @@ TRAIN_LABELS_PATH = "trainLabels" # labels
 VAL_LABELS_PATH = "valLabels"
 
 TRAIN_FEEDBACK_PATH = "feedback" # evaluative feedback
+

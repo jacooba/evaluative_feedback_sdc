@@ -1,14 +1,16 @@
+
 import constants as c
 from retrain_inception import Model
-import sys, os
+
+import sys, os, glob
 import numpy as np
-from utils import get_args, delete_model_files
+import argparse
+
 
 
 class Runner:
 	def __init__(self):
-		""" Initializes a Runner. Reads in data and instantiates a Model. """
-		# read in data
+		# read in Data #
 		self.train_tup = (None,None,None) #(images,labels,feedbacks)
 		self.val_tup = (None,None) #(images,labels)
 		self.read_in_data()
@@ -21,29 +23,59 @@ class Runner:
 		self.model = Model()
 
 	def read_in_data(self):
-		""" Reads in training and validation data and saves them as instance
-			variables. """
 		print "\nREADING IN DATA..."
-		self.train_tup = (np.load(c.TRAIN_DATA_PATH+".npy"),
-                          np.load(c.TRAIN_LABELS_PATH+".npy"),
+		self.train_tup = (np.load(c.TRAIN_DATA_PATH+".npy"), 
+                          np.load(c.TRAIN_LABELS_PATH+".npy"), 
                           np.load(c.TRAIN_FEEDBACK_PATH+".npy"))
-		self.val_tup = (np.load(c.VAL_DATA_PATH+".npy"),
-                        np.load(c.VAL_LABELS_PATH+".npy"))
+		self.val_tup = (np.load(c.VAL_DATA_PATH+".npy"), 
+                        np.load(c.VAL_LABELS_PATH+".npy"))	
 
 	def train(self):
-		""" Trains a new model, if there isn't already a saved model file. """
 		print "\nTRAINING..."
 		self.model.train(self.train_tup, self.val_tup)
 
 	def val(self):
-		""" Evaluates the model on the validation data, as long as there is a
-			trained model. """
 		if not os.path.exists(c.MODEL_PATH):
 			print "\n\nNo Model, validating untrained model\n\n"
 
 		print "\nVALIDATING..."
 		self.model.eval(self.val_tup)
 
+
+
+# helper functions #
+
+def delete_model_files():
+	model_files = glob.glob(os.path.join(c.MODEL_DIR, "*"))
+	summary_files = glob.glob(os.path.join(c.SUMMARY_DIR, "*"))
+	for f in model_files+summary_files:
+		os.remove(f)
+
+def get_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--new',
+                        help="Delete old model.",
+                        dest='new',
+                        action='store_true',
+                        default=False)
+
+    parser.add_argument('--val',
+                        help="Validate model.",
+                        dest='val',
+                        action='store_true',
+                        default=False)
+
+    parser.add_argument('--train',
+                        help="Train model.",
+                        dest='train',
+                        action='store_true',
+                        default=False)
+
+    return parser.parse_args()
+
+
+# main #
 
 def main():
 	args = get_args()

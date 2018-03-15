@@ -7,9 +7,11 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 class Model:
     def __init__(self):
-        """ Loads a pre-trained Inception net, adds desired layers, and
-            initializes it for training/evaluation. Or loads in an existing
+        """ Loads a pre-trained Inception net, adds desired layers, and 
+            initializes it for training/evaluation. Or loads in an existing 
             re-trained model, if one exists.
+
+            :param sess: A Tensorflow session
         """
         self.sess = tf.Session()
         self._define_graph()
@@ -17,14 +19,17 @@ class Model:
         self.saver = tf.train.Saver()
         self.summary_writer = tf.summary.FileWriter(c.SUMMARY_DIR, self.sess.graph)
 
-        self.sess.run(tf.global_variables_initializer())
+        #self.sess.run(tf.global_variables_initializer())
+        self.sess.run(tf.variables_initializer(self.new_vars)) #only init new vars
         self._load_model_if_exists()
 
     def _define_graph(self):
         """ Loads in the Inception net and adds desired layers. """
         self._add_image_processing()
         self._create_inception_tensor()
-        self._add_retrain_ops()
+        with tf.variable_scope('new_vars'):
+            self._add_retrain_ops()
+            self.new_vars = tf.global_variables(scope=tf.get_variable_scope().name)
 
     def _add_image_processing(self):
         """ Makes a placeholder for raw images and processes them into a new tensor. """
@@ -36,9 +41,13 @@ class Model:
         self.processed_images = tf.multiply(offset_image, 1.0 / c.INPUT_STD)
 
     def _create_inception_tensor(self):
-        """ Loads in the Inception net, saving the desired input & bottleneck
-            tensors as instance variables. Adds a stop gradient to the bottleneck
+        """ Loads in the Inception net, saving the desired input & bottleneck 
+            tensors as insta
+            nce variables. Adds a stop gradient to the bottleneck 
             tensor. """
+        #redifine the input to have any batch size
+        self.img_input = tf.placeholder(tf.float32, [None, c.INPUT_HEIGHT, c.INPUT_WIDTH, c.INPUT_DEPTH], name=c.IMAGE_INPUT_TENSOR_NAME)
+        
         print('Loading Inception model at path: ', c.INCEPTION_PATH)
         with gfile.FastGFile(c.INCEPTION_PATH, 'rb') as f:
             graph_def = tf.GraphDef()
@@ -46,6 +55,7 @@ class Model:
             self.bottleneck_tensor = (tf.import_graph_def(
                 graph_def,
                 name='',
+                input_map={c.IMAGE_INPUT_TENSOR_NAME: self.img_input},
                 return_elements=[
                     c.BOTTLENECK_TENSOR_NAME#,
                     #c.IMAGE_INPUT_TENSOR_NAME
@@ -53,13 +63,13 @@ class Model:
 
         # make everything before chosen bottleneck tensor untrainable
         self.bottleneck_tensor = tf.stop_gradient(self.bottleneck_tensor, name="bottleneck_stop_gradient")
+        self.bottleneck_tensor = tf.squeeze(self.bottleneck_tensor, [0]) #there is extra dim of size 1 in their code
 
     def _add_retrain_ops(self):
         """ Adds new layers (specified in constants.py), loss, & train op to graph. """
         self.global_step = tf.Variable(0, name="global_step", trainable=False)
         self.labels = tf.placeholder(tf.float32, [None], name='labels')
         self.feedback = tf.placeholder(tf.float32, [None], name='human_feedback')
-        self.img_input = tf.placeholder(tf.float32, [None, c.INPUT_HEIGHT, c.INPUT_WIDTH, c.INPUT_DEPTH], name=c.IMAGE_INPUT_TENSOR_NAME)
 
         with tf.name_scope('new_layers'):
             flattened_conv = utils.conv_layers("conv", self.bottleneck_tensor,
@@ -67,8 +77,9 @@ class Model:
                                                c.CONV_STRIDES)
 
             fc_output = utils.fc_layers("fc", flattened_conv, c.FC_CHANNELS)
-
+    
             self.predictions = tf.layers.dense(fc_output, 1, name='predictions')
+            self.predictions = tf.tanh(self.predictions) #restrict to -1 to 1 
             self.predictions = tf.reshape(self.predictions, [-1])
 
         with tf.name_scope('loss'):
@@ -103,8 +114,8 @@ class Model:
         self.saver.save(self.sess, c.MODEL_PATH, global_step=self.global_step)
 
     def _train_step(self, img_batch, label_batch, feedback_batch):
-        """ Executes a training step on a given training batch. Runs the train op
-            on the given batch and regularly writes out training loss summaries
+        """ Executes a training step on a given training batch. Runs the train op 
+            on the given batch and regularly writes out training loss summaries 
             and saves the model.
 
             :param img_batch: The batch images
@@ -131,14 +142,14 @@ class Model:
         print "First prediction:", predictions[0]
 
     def train(self, train_tup, val_tup):
-        """ Training loop. Trains & validates for the given number of epochs
+        """ Training loop. Trains & validates for the given number of epochs 
             on given data.
-
+            
             :param train_tup: All the training data; tuple of (images, labels, feedback)
             :param val_tup: All the validation data; tuple of (images, labels, feedback)
         """
         for i in xrange(c.NUM_EPOCHS):
-            print "\nEpoch", i+1
+            print "\nEpoch", i+1, "("+str(len(train_tup[0])/c.BATCH_SIZE)+" steps)"
             for imgs, labels, feedback in utils.gen_batches(train_tup):
                 self._train_step(imgs, labels, feedback)
             self._save()
@@ -156,6 +167,9 @@ class Model:
                      self.labels: labels}
         step, loss_summary, mse = self.sess.run(sess_args, feed_dict=feed_dict)
         self.summary_writer.add_summary(loss_summary, global_step=step)
-
+        
         print ""
         print "Valiation Loss:", mse
+
+
+
