@@ -12,7 +12,7 @@ INPUT_DEPTH = 3
 INPUT_MEAN = 256.0/2.0
 INPUT_STD = 256.0/2.0
 
-#TODO 
+#TODO
 DROP_RATE = 0.0
 BATCH_NORM = False
 
@@ -27,7 +27,10 @@ CONV_STRIDES = []
 FC_CHANNELS = [100]
 
 IMAGE_INPUT_TENSOR_NAME = 'Mul'
-BOTTLENECK_TENSOR_NAME = 'pool_3/_reshape:0'
+POSSIBLE_BOTTLENECK_TENSORS = ['conv'] + ['conv_%d/Conv2D:0' % i for i in range(1, 5)] \
+    + ['mixed'] + ['mixed_%d/join:0' % i for i in range(1, 11)]
+IDX_BOTTLENECK = -1
+BOTTLENECK_TENSOR_NAME = POSSIBLE_BOTTLENECK_TENSORS[IDX_BOTTLENECK]
 
 SUMMARY_SAVE_FREQ = 50
 MODEL_SAVE_FREQ = 1000
@@ -49,4 +52,3 @@ TRAIN_LABELS_PATH = "trainLabels" # labels
 VAL_LABELS_PATH = "valLabels"
 
 TRAIN_FEEDBACK_PATH = "feedback" # evaluative feedback
-

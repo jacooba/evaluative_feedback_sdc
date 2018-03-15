@@ -1,4 +1,6 @@
 all\ data/
+Model/
+Summary/
 *.npy
 *.pb
-
+*.pyc
