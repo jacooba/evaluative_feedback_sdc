@@ -8,10 +8,9 @@
 
 #NOTE:
 #in the csv, as of making this, the data is stored as...
-# {0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11},{12},{13}\n", 
-# = centerPath, leftPath, rightPath, sample.steeringAngle,
-#   sample.throttle, sample.brake, sample.speed, sample.position.x, sample.position.y, sample.position.z, 
-#   sample.rotation.w, sample.rotation.x, sample.rotation.y, sample.rotation.z
+# centerPath, leftPath, rightPath, sample.steeringAngle, feedback, 
+# sample.throttle, sample.brake, sample.speed, sample.position.x, sample.position.y, sample.position.z, 
+# sample.rotation.w, sample.rotation.x, sample.rotation.y, sample.rotation.z
 
 import os
 import fnmatch
