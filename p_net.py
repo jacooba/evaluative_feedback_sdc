@@ -17,7 +17,7 @@ class Model:
         self._define_graph()
 
         self.saver = tf.train.Saver()
-        self.summary_writer = tf.summary.FileWriter(c.SUMMARY_DIR, self.sess.graph)
+        self.summary_writer = tf.summary.FileWriter(c.P_SUMMARY_DIR, self.sess.graph)
 
         #self.sess.run(tf.global_variables_initializer())
         self.sess.run(tf.variables_initializer(self.new_vars)) #only init new vars
@@ -83,10 +83,22 @@ class Model:
             self.predictions = tf.reshape(self.predictions, [-1])
 
         with tf.name_scope('loss'):
-            self.loss = tf.reduce_mean(tf.square(self.labels - self.predictions) * self.feedback)
-            self.mse = tf.losses.mean_squared_error(self.labels, self.predictions)
-            self.train_loss_summary = tf.summary.scalar('train_loss', self.mse)
-            self.val_loss_summary = tf.summary.scalar('val_loss', self.mse)
+            #threshold feedback to -1 or 1 if necessary
+            if c.THRESHOLD_FEEDBACK:
+                modified_feedback = tf.sign(self.feedback)
+            else:
+                modified_feedback = self.feedback
+            #scale feedback by ALPHA
+            scaled_feedback = tf.maximum(c.ALPHA*modified_feedback, modified_feedback) #scale down negative feedback
+            #put feedback in correct place
+            if FEEDBACK_IN_EXPONENT:
+                self.loss = tf.reduce_mean(tf.abs(self.labels - self.predictions)**(scaled_feedback*c.LOSS_EXPONENT))
+            else:
+                self.loss = tf.reduce_mean(scaled_feedback * tf.abs(self.labels - self.predictions)**c.LOSS_EXPONENT)
+            #metrics for summaries
+            self.abs_err = tf.reduce_mean(tf.abs(self.labels - self.predictions))*c.MAX_ANGLE
+            self.train_loss_summary = tf.summary.scalar('train_loss', self.abs_err)
+            self.val_loss_summary = tf.summary.scalar('val_loss', self.abs_err)
 
         with tf.name_scope('train'):
             optimizer = tf.train.AdamOptimizer(c.LRATE)
@@ -94,7 +106,7 @@ class Model:
 
     def _load_model_if_exists(self):
         """ Loads an existing pre-trained model from the model directory, if one exists. """
-        check_point = tf.train.get_checkpoint_state(c.MODEL_DIR)
+        check_point = tf.train.get_checkpoint_state(c.P_MODEL_DIR)
         if check_point and check_point.model_checkpoint_path:
             print 'Restoring model from ' + check_point.model_checkpoint_path
             self.saver.restore(self.sess, check_point.model_checkpoint_path)
@@ -111,7 +123,7 @@ class Model:
     def _save(self):
         """ Saves the model
         """
-        self.saver.save(self.sess, c.MODEL_PATH, global_step=self.global_step)
+        self.saver.save(self.sess, c.P_MODEL_PATH, global_step=self.global_step)
 
     def _train_step(self, img_batch, label_batch, feedback_batch):
         """ Executes a training step on a given training batch. Runs the train op 
@@ -123,11 +135,11 @@ class Model:
             :param feedback_batch: The batch human feedback
         """
         processed_images = self._process_images(img_batch)
-        sess_args = [self.global_step, self.train_loss_summary, self.predictions, self.mse, self.train_op]
+        sess_args = [self.global_step, self.train_loss_summary, self.predictions, self.abs_err, self.train_op]
         feed_dict = {self.img_input: processed_images,
                      self.labels: label_batch,
                      self.feedback: feedback_batch}
-        step, loss_summary, predictions, mse, _ = self.sess.run(sess_args, feed_dict=feed_dict)
+        step, loss_summary, predictions, abs_err, _ = self.sess.run(sess_args, feed_dict=feed_dict)
 
         if (step - 1) % c.SUMMARY_SAVE_FREQ == 0:
             self.summary_writer.add_summary(loss_summary, global_step=step)
@@ -137,7 +149,7 @@ class Model:
 
         print ""
         print "Completed step:", step
-        print "Training loss:", mse
+        print "Training loss:", abs_err
         print "Average prediction:", np.mean(predictions)
         print "First prediction:", predictions[0]
 
@@ -160,16 +172,16 @@ class Model:
 
             :param val_tup: The data to evaluate the model on; tuple of (images, labels, feedback)
         """
-        imgs, labels = val_tup
+        imgs, labels, _ = val_tup
         processed_imgs = self._process_images(imgs)
-        sess_args = [self.global_step, self.val_loss_summary, self.mse]
+        sess_args = [self.global_step, self.val_loss_summary, self.abs_err]
         feed_dict = {self.img_input: processed_imgs,
                      self.labels: labels}
-        step, loss_summary, mse = self.sess.run(sess_args, feed_dict=feed_dict)
+        step, loss_summary, abs_err = self.sess.run(sess_args, feed_dict=feed_dict)
         self.summary_writer.add_summary(loss_summary, global_step=step)
         
         print ""
-        print "Valiation Loss:", mse
+        print "Valiation Loss:", abs_err
 
 
 

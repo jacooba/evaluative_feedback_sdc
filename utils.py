@@ -31,21 +31,28 @@ def conv_layers(scope_name, inpt, channel_sizes, kernels, strides):
     return flattened_conv
 
 
-def fc_layers(scope_name, inpt, fc_sizes):
+def fc_layers(scope_name, inpt, fc_sizes, additional_input=None):
     """ Makes arbitrary fully-connected layers on top of given layer. Returns 
         resulting tensor.
 
         :param scope_name: The variable scope name for the FC layers
         :param inpt: The existing layer to build on top of
         :param channel_sizes: The desired number of channels after each FC layer
+        :param additional_input: A tuple of (tensor, i) where tensor contains additonal values that
+                                 should be concatenated after the ith fully connected layer 
 
         :return: The resulting tensor after new FC layers
     """
     with tf.variable_scope(scope_name, reuse=False):
         fc_layer = inpt
         for i, sz in enumerate(fc_sizes):
+            #make fully connected later
             fc_layer = tf.layers.dense(fc_layer, sz, name='fc_%d' % i, 
                                         activation=tf.nn.relu)
+            #concat additional input onto this layer if necessary
+            if additional_input and additional_input[1] == i:
+                fc_layer = tf.concat([fc_layer, additional_input[0]], axis=1)  
+
     return fc_layer
 
 

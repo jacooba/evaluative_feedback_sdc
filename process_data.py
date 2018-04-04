@@ -37,12 +37,18 @@ def getIMGPathAndLabelTups(csvFilename, dirpath):
     for i, line in enumerate(fileLines):
         if i%c.EVERY_X_IMAGES==0: #only take every "x" image. we have too much data
             lineItems = line.split(",")
-            windowsPath, label = lineItems[0], float(lineItems[3])
+            windowsPath, label, feedback = lineItems[0], float(lineItems[3]), lineItems[4] #float(lineItems[4])
             imageName = windowsPath.split("IMG\\")[1]
             path = os.path.join(dirpath, "IMG")
             path = os.path.join(path, imageName)
 
-            toReturn.append( (path,label) )
+            print "IF FEEDBACK IS NULL, setting to 999 for testing purposes... PLEASE REMOVE AND CONVERT TO FLOAT above ONCE DONE COLLECTING FEEDBACK"
+            if feedback == "null":
+                feedback = 999
+            else:
+                feedback = float(feedback)
+
+            toReturn.append( (path,label,feedback) )
 
     return toReturn
 
@@ -56,32 +62,41 @@ def getIMGFromPath(path):
 
 if __name__ == "__main__":
 
-    imagePathLabelTups = [] #list of tuple of image paths and steering angle labels
+    imagepathLabelFeedbackTups = [] #list of tuple of image paths and steering angle labels
     for dirpath, dirnames, filenames in os.walk(os.getcwd()):
         for csvFilename in fnmatch.filter(filenames, '*.csv'):
-            imagePathLabelTups.extend(getIMGPathAndLabelTups(csvFilename, dirpath))
-    random.shuffle(imagePathLabelTups)  #shuffle the data
-    imagePathsInNewOrder, lablesInNewOrder = zip(*imagePathLabelTups) #extract list of images and lables
+            imagepathLabelFeedbackTups.extend(getIMGPathAndLabelTups(csvFilename, dirpath))
+    random.shuffle(imagepathLabelFeedbackTups)  #shuffle the data
 
     #calculate number of images for val/train
-    numImgs = len(imagePathsInNewOrder)
-    numImgVal = int(c.VAL_FRAC*numImgs)
-    print "\nnumber of images:", numImgs,"\n"
+    numData = len(imagepathLabelFeedbackTups)
+    numDataVal = int(c.VAL_FRAC*numData)
+    print "\nnumber of images before 2x augment:", numImgs,"\n"
 
     #seperate data
-    valPathData = imagePathsInNewOrder[:numImgVal] #cut of first for validation
-    trainPathData = imagePathsInNewOrder[numImgVal:] #cut of first for validation
+    valTups = imagepathLabelFeedbackTups[:numImgVal]
+    trainTups = imagepathLabelFeedbackTups[numImgVal:]
 
-    valLabels = lablesInNewOrder[:numImgVal]
-    trainLabels = lablesInNewOrder[numImgVal:]
-    # TODO: read this in as well instead of setting to 1!
-    feedback = np.ones_like(trainLabels)
+    #unzip into lists of serpeate compenents
+    trainImagePaths, trainLables, trainFeedback = zip(*trainTups) #extract list of images and list of lables and list of feedback
+    valImagePaths, valLables, valFeedback = zip(*valTups)
 
     #convert paths to actual image data
-    print "Reading in data..."
+    print "Reading in image data..."
     t = time()
     valData = [getIMGFromPath(path) for path in valPathData]
     trainData = [getIMGFromPath(path) for path in trainPathData]
+    print "Took", (time()-t)/60.0, "minutes\n"
+
+    #augment data by flipping image and inverting angle
+    print "augmenting data..."
+    t = time()
+    trainData.extend([np.fliplr(img) for img in trainData]) #train data
+    trainLables.extend([-1.0*label for label in trainLables])
+    trainFeedback.extend(trainFeedback)
+    valData.extend([np.fliplr(img) for img in valData]) #val data
+    valLables.extend([-1.0*label for label in valLables])
+    valFeedback.extend(valFeedback)
     print "Took", (time()-t)/60.0, "minutes\n"
 
     #save data as numpy arrays
@@ -91,7 +106,8 @@ if __name__ == "__main__":
     np.save(c.TRAIN_LABELS_PATH, trainLabels)
     np.save(c.VAL_DATA_PATH, valData)
     np.save(c.TRAIN_DATA_PATH, trainData)
-    np.save(c.TRAIN_FEEDBACK_PATH, feedback)
+    np.save(c.VAL_FEEDBACK_PATH, valFeedback)
+    np.save(c.TRAIN_FEEDBACK_PATH, trainFeedback)
     print "Took", (time()-t)/60.0, "minutes\n"
 
     #NOTE: when you go to load, do np.load("xxxxx.npy"). Dont forget the ".npy"!
