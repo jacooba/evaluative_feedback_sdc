@@ -7,11 +7,9 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 class Model:
     def __init__(self):
-        """ Loads a pre-trained Inception net, adds desired layers, and 
-            initializes it for training/evaluation. Or loads in an existing 
+        """ Loads a pre-trained Inception net, adds desired layers, and
+            initializes it for training/evaluation. Or loads in an existing
             re-trained model, if one exists.
-
-            :param sess: A Tensorflow session
         """
         self.sess = tf.Session()
         self._define_graph()
@@ -41,13 +39,12 @@ class Model:
         self.processed_images = tf.multiply(offset_image, 1.0 / c.INPUT_STD)
 
     def _create_inception_tensor(self):
-        """ Loads in the Inception net, saving the desired input & bottleneck 
-            tensors as insta
-            nce variables. Adds a stop gradient to the bottleneck 
+        """ Loads in the Inception net, saving the desired input & bottleneck
+            tensors as instance variables. Adds a stop gradient to the bottleneck
             tensor. """
         #redifine the input to have any batch size
         self.img_input = tf.placeholder(tf.float32, [None, c.INPUT_HEIGHT, c.INPUT_WIDTH, c.INPUT_DEPTH], name=c.IMAGE_INPUT_TENSOR_NAME)
-        
+
         print('Loading Inception model at path: ', c.INCEPTION_PATH)
         with gfile.FastGFile(c.INCEPTION_PATH, 'rb') as f:
             graph_def = tf.GraphDef()
@@ -77,9 +74,9 @@ class Model:
                                                c.CONV_STRIDES)
 
             fc_output = utils.fc_layers("fc", flattened_conv, c.FC_CHANNELS)
-    
+
             self.predictions = tf.layers.dense(fc_output, 1, name='predictions')
-            self.predictions = tf.tanh(self.predictions) #restrict to -1 to 1 
+            self.predictions = tf.tanh(self.predictions) #restrict to -1 to 1
             self.predictions = tf.reshape(self.predictions, [-1])
 
         with tf.name_scope('loss'):
@@ -91,7 +88,7 @@ class Model:
             #scale feedback by ALPHA
             scaled_feedback = tf.maximum(c.ALPHA*modified_feedback, modified_feedback) #scale down negative feedback
             #put feedback in correct place
-            if FEEDBACK_IN_EXPONENT:
+            if c.FEEDBACK_IN_EXPONENT:
                 self.loss = tf.reduce_mean(tf.abs(self.labels - self.predictions)**(scaled_feedback*c.LOSS_EXPONENT))
             else:
                 self.loss = tf.reduce_mean(scaled_feedback * tf.abs(self.labels - self.predictions)**c.LOSS_EXPONENT)
@@ -108,7 +105,7 @@ class Model:
         """ Loads an existing pre-trained model from the model directory, if one exists. """
         check_point = tf.train.get_checkpoint_state(c.P_MODEL_DIR)
         if check_point and check_point.model_checkpoint_path:
-            print 'Restoring model from ' + check_point.model_checkpoint_path
+            print('Restoring model from ' + check_point.model_checkpoint_path)
             self.saver.restore(self.sess, check_point.model_checkpoint_path)
 
     def _process_images(self, img_batch):
@@ -126,8 +123,8 @@ class Model:
         self.saver.save(self.sess, c.P_MODEL_PATH, global_step=self.global_step)
 
     def _train_step(self, img_batch, label_batch, feedback_batch):
-        """ Executes a training step on a given training batch. Runs the train op 
-            on the given batch and regularly writes out training loss summaries 
+        """ Executes a training step on a given training batch. Runs the train op
+            on the given batch and regularly writes out training loss summaries
             and saves the model.
 
             :param img_batch: The batch images
@@ -147,21 +144,23 @@ class Model:
         if (step - 1) % c.MODEL_SAVE_FREQ == 0:
             self._save()
 
-        print ""
-        print "Completed step:", step
-        print "Training loss:", abs_err
-        print "Average prediction:", np.mean(predictions)
-        print "First prediction:", predictions[0]
+        print("")
+        print("Completed step:", step)
+        print("Average error:", abs_err)
+        print("Average prediction:", np.mean(predictions))
+        print("First angle:", str(label_batch[0]) + ",", "prediction:", predictions[0])
+        print("Middle angle:", str(label_batch[len(label_batch) // 2]) + ",", "prediction:", predictions[len(label_batch) // 2])
+        print("Last angle:", str(label_batch[-1]) + ",", "prediction:", predictions[-1])
 
     def train(self, train_tup, val_tup):
-        """ Training loop. Trains & validates for the given number of epochs 
+        """ Training loop. Trains & validates for the given number of epochs
             on given data.
-            
+
             :param train_tup: All the training data; tuple of (images, labels, feedback)
             :param val_tup: All the validation data; tuple of (images, labels, feedback)
         """
-        for i in xrange(c.NUM_EPOCHS):
-            print "\nEpoch", i+1, "("+str(len(train_tup[0])/c.BATCH_SIZE)+" steps)"
+        for i in range(c.NUM_EPOCHS):
+            print("\nEpoch", i+1, "("+str(len(train_tup[0])/c.BATCH_SIZE)+" steps)")
             for imgs, labels, feedback in utils.gen_batches(train_tup):
                 self._train_step(imgs, labels, feedback)
             self._save()
@@ -179,9 +178,6 @@ class Model:
                      self.labels: labels}
         step, loss_summary, abs_err = self.sess.run(sess_args, feed_dict=feed_dict)
         self.summary_writer.add_summary(loss_summary, global_step=step)
-        
-        print ""
-        print "Valiation Loss:", abs_err
 
-
-
+        print("")
+        print("Valiation Loss:", abs_err)

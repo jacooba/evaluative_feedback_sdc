@@ -7,10 +7,10 @@ import os
 
 #loss for policy net (if not using fnet as loss). 
 #Note, behavioral clone settings: ALPHA = 0.0, LOSS_EXPONENT=2, THRESHOLD_FEEDBACK = True
-ALPHA = 0.8 #[0,1] scale on negative feeback. (knob for making it less important).
+ALPHA = 0. #[0,1] scale on negative feeback. (knob for making it less important).
 LOSS_EXPONENT = 2 #loss = f*abs(y_hat-y)^LOSS_EXPONENT. 2 is mse.
 FEEDBACK_IN_EXPONENT = False #if true, loss = abs(y_hat-y)^(f*LOSS_EXPONENT)
-THRESHOLD_FEEDBACK = False #if true, loss will be -1(*alpha) or 1
+THRESHOLD_FEEDBACK = True #if true, loss will be -1(*alpha) or 1
 
 MAX_ANGLE = 50.0
 
@@ -49,11 +49,11 @@ INCEPTION_PATH = os.path.join(INCEPTION_DIR, 'classify_image_graph_def.pb')
 #policy net paths
 P_SUMMARY_DIR = os.path.join(os.getcwd(), "PSummary")
 P_MODEL_DIR = os.path.join(os.getcwd(), "PModel")
-P_MODEL_PATH = os.path.join(MODEL_DIR, "model")
+P_MODEL_PATH = os.path.join(P_MODEL_DIR, "model")
 #feedback net paths
 F_SUMMARY_DIR = os.path.join(os.getcwd(), "PSummary")
 F_MODEL_DIR = os.path.join(os.getcwd(), "PModel")
-F_MODEL_PATH = os.path.join(MODEL_DIR, "model")
+F_MODEL_PATH = os.path.join(F_MODEL_DIR, "model")
 
 EVERY_X_IMAGES = 5 #down sample the frequency of images
 VAL_FRAC = .25

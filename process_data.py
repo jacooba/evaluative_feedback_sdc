@@ -1,4 +1,4 @@
-#This fle takes all center images from data folder, shuffles them, 
+#This fle takes all center images from data folder, shuffles them,
 #then saves a numpy array file representing all pics and a numpy file representing all labels
 #(for both train and val data)
 
@@ -8,8 +8,8 @@
 
 #NOTE:
 #in the csv, as of making this, the data is stored as...
-# centerPath, leftPath, rightPath, sample.steeringAngle, feedback, 
-# sample.throttle, sample.brake, sample.speed, sample.position.x, sample.position.y, sample.position.z, 
+# centerPath, leftPath, rightPath, sample.steeringAngle, feedback,
+# sample.throttle, sample.brake, sample.speed, sample.position.x, sample.position.y, sample.position.z,
 # sample.rotation.w, sample.rotation.x, sample.rotation.y, sample.rotation.z
 
 import os
@@ -26,34 +26,33 @@ import constants as c
 
 
 
-def getIMGPathAndLabelTups(csvFilename, dirpath):
+def get_img_path_and_label_tups(csv_filename, dirpath):
+    csv_filepath = os.path.join(dirpath, csv_filename)
+    with open(csv_filepath, "r") as csv_file:
+        file_lines = csv_file.readlines()
 
-    csvFilepath = os.path.join(dirpath, csvFilename)
-    with open(csvFilepath, "r") as csvFile:
-        fileLines = csvFile.readlines()
+    to_return = []
 
-    toReturn = []
-
-    for i, line in enumerate(fileLines):
-        if i%c.EVERY_X_IMAGES==0: #only take every "x" image. we have too much data
-            lineItems = line.split(",")
-            windowsPath, label, feedback = lineItems[0], float(lineItems[3]), lineItems[4] #float(lineItems[4])
-            imageName = windowsPath.split("IMG\\")[1]
+    for i, line in enumerate(file_lines):
+        if i % c.EVERY_X_IMAGES == 0: #only take every "x" image. we have too much data
+            line_items = line.split(",")
+            windows_path, label, feedback = line_items[0], float(line_items[3]), line_items[4] #float(line_items[4])
+            image_name = windows_path.split("IMG\\")[1]
             path = os.path.join(dirpath, "IMG")
-            path = os.path.join(path, imageName)
+            path = os.path.join(path, image_name)
 
-            print "IF FEEDBACK IS NULL, setting to 999 for testing purposes... PLEASE REMOVE AND CONVERT TO FLOAT above ONCE DONE COLLECTING FEEDBACK"
+            print("IF FEEDBACK IS NULL, setting to 999 for testing purposes... PLEASE REMOVE AND CONVERT TO FLOAT above ONCE DONE COLLECTING FEEDBACK")
             if feedback == "null":
                 feedback = 999
             else:
                 feedback = float(feedback)
 
-            toReturn.append( (path,label,feedback) )
+            to_return.append( (path,label,feedback) )
 
-    return toReturn
+    return to_return
 
 #NOTE: saves as (h, w, channels)
-def getIMGFromPath(path):
+def get_img_from_path(path):
     img = Image.open(path)
     return np.array(img)
 
@@ -62,54 +61,54 @@ def getIMGFromPath(path):
 
 if __name__ == "__main__":
 
-    imagepathLabelFeedbackTups = [] #list of tuple of image paths and steering angle labels
+    image_path_label_feedback_tups = [] #list of tuple of image paths and steering angle labels
     for dirpath, dirnames, filenames in os.walk(os.getcwd()):
-        for csvFilename in fnmatch.filter(filenames, '*.csv'):
-            imagepathLabelFeedbackTups.extend(getIMGPathAndLabelTups(csvFilename, dirpath))
-    random.shuffle(imagepathLabelFeedbackTups)  #shuffle the data
+        for csv_filename in fnmatch.filter(filenames, '*.csv'):
+            image_path_label_feedback_tups.extend(get_img_path_and_label_tups(csv_filename, dirpath))
+    random.shuffle(image_path_label_feedback_tups)  #shuffle the data
 
     #calculate number of images for val/train
-    numData = len(imagepathLabelFeedbackTups)
-    numDataVal = int(c.VAL_FRAC*numData)
-    print "\nnumber of images before 2x augment:", numImgs,"\n"
+    num_data = len(image_path_label_feedback_tups)
+    num_data_val = int(c.VAL_FRAC * num_data)
+    print("\nnumber of images before 2x augment:", num_data,"\n")
 
     #seperate data
-    valTups = imagepathLabelFeedbackTups[:numImgVal]
-    trainTups = imagepathLabelFeedbackTups[numImgVal:]
+    val_tups = image_path_label_feedback_tups[:num_data_val]
+    train_tups = image_path_label_feedback_tups[num_data_val:]
 
     #unzip into lists of serpeate compenents
-    trainImagePaths, trainLables, trainFeedback = zip(*trainTups) #extract list of images and list of lables and list of feedback
-    valImagePaths, valLables, valFeedback = zip(*valTups)
+    train_image_paths, train_labels, train_feedback = zip(*train_tups) #extract list of images and list of labels and list of feedback
+    train_labels, train_feedback = list(train_labels), list(train_feedback)
+    val_image_paths, val_labels, val_feedback = zip(*val_tups)
+    val_labels, val_feedback = list(val_labels), list(val_feedback)
 
     #convert paths to actual image data
-    print "Reading in image data..."
+    print("Reading in image data...")
     t = time()
-    valData = [getIMGFromPath(path) for path in valPathData]
-    trainData = [getIMGFromPath(path) for path in trainPathData]
-    print "Took", (time()-t)/60.0, "minutes\n"
+    val_data = [get_img_from_path(path) for path in val_image_paths]
+    train_data = [get_img_from_path(path) for path in train_image_paths]
+    print("Took", (time()-t)/60.0, "minutes\n")
 
     #augment data by flipping image and inverting angle
-    print "augmenting data..."
+    print("augmenting data...")
     t = time()
-    trainData.extend([np.fliplr(img) for img in trainData]) #train data
-    trainLables.extend([-1.0*label for label in trainLables])
-    trainFeedback.extend(trainFeedback)
-    valData.extend([np.fliplr(img) for img in valData]) #val data
-    valLables.extend([-1.0*label for label in valLables])
-    valFeedback.extend(valFeedback)
-    print "Took", (time()-t)/60.0, "minutes\n"
+    train_data.extend([np.fliplr(img) for img in train_data]) #train data
+    train_labels.extend([-1.0*label for label in train_labels])
+    train_feedback.extend(train_feedback)
+    val_data.extend([np.fliplr(img) for img in val_data]) #val data
+    val_labels.extend([-1.0*label for label in val_labels])
+    val_feedback.extend(val_feedback)
+    print("Took", (time()-t)/60.0, "minutes\n")
 
     #save data as numpy arrays
-    print "Writing out data..."
+    print("Writing out data...")
     t = time()
-    np.save(c.VAL_LABELS_PATH, valLabels)
-    np.save(c.TRAIN_LABELS_PATH, trainLabels)
-    np.save(c.VAL_DATA_PATH, valData)
-    np.save(c.TRAIN_DATA_PATH, trainData)
-    np.save(c.VAL_FEEDBACK_PATH, valFeedback)
-    np.save(c.TRAIN_FEEDBACK_PATH, trainFeedback)
-    print "Took", (time()-t)/60.0, "minutes\n"
+    np.save(c.VAL_LABELS_PATH, val_labels)
+    np.save(c.TRAIN_LABELS_PATH, train_labels)
+    np.save(c.VAL_DATA_PATH, val_data)
+    np.save(c.TRAIN_DATA_PATH, train_data)
+    np.save(c.VAL_FEEDBACK_PATH, val_feedback)
+    np.save(c.TRAIN_FEEDBACK_PATH, train_feedback)
+    print("Took", (time()-t)/60.0, "minutes\n")
 
     #NOTE: when you go to load, do np.load("xxxxx.npy"). Dont forget the ".npy"!
-
-

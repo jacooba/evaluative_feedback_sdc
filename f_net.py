@@ -7,8 +7,8 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 class Model:
     def __init__(self):
-        """ Loads a pre-trained Inception net, adds desired layers, and 
-            initializes it for training/evaluation. Or loads in an existing 
+        """ Loads a pre-trained Inception net, adds desired layers, and
+            initializes it for training/evaluation. Or loads in an existing
             re-trained model, if one exists.
 
             :param sess: A Tensorflow session
@@ -41,13 +41,13 @@ class Model:
         self.processed_images = tf.multiply(offset_image, 1.0 / c.INPUT_STD)
 
     def _create_inception_tensor(self):
-        """ Loads in the Inception net, saving the desired input & bottleneck 
+        """ Loads in the Inception net, saving the desired input & bottleneck
             tensors as insta
-            nce variables. Adds a stop gradient to the bottleneck 
+            nce variables. Adds a stop gradient to the bottleneck
             tensor. """
         #redifine the input to have any batch size
         self.img_input = tf.placeholder(tf.float32, [None, c.INPUT_HEIGHT, c.INPUT_WIDTH, c.INPUT_DEPTH], name=c.IMAGE_INPUT_TENSOR_NAME)
-        
+
         print('Loading Inception model at path: ', c.INCEPTION_PATH)
         with gfile.FastGFile(c.INCEPTION_PATH, 'rb') as f:
             graph_def = tf.GraphDef()
@@ -76,15 +76,15 @@ class Model:
                                                c.CONV_CHANNELS, c.CONV_KERNELS,
                                                c.CONV_STRIDES)
 
-            fc_output = utils.fc_layers("fc", flattened_conv, c.FC_CHANNELS, additional_input=(self.labels,0))  ##changed from p_net                   
-    
+            fc_output = utils.fc_layers("fc", flattened_conv, c.FC_CHANNELS, additional_input=(self.labels,0))  ##changed from p_net
+
             self.feedback_predictions = tf.layers.dense(fc_output, 1, name='feedback_predictions')
-            self.feedback_predictions = tf.tanh(self.feedback_predictions) #restrict to -1 to 1 
+            self.feedback_predictions = tf.tanh(self.feedback_predictions) #restrict to -1 to 1
             self.feedback_predictions = tf.reshape(self.feedback_predictions, [-1])
 
         with tf.name_scope('loss'):
             self.loss = tf.reduce_mean(tf.square(self.feedback - self.feedback_predictions))                    ##changed from p_net
-            self.abs_err = tf.abs(self.feedback - self.feedback_predictions)*c.MAX_ANGLE                        ##changed from p_net
+            self.abs_err = tf.reduce_mean(tf.abs(self.feedback - self.feedback_predictions)*c.MAX_ANGLE)                        ##changed from p_net
             self.train_loss_summary = tf.summary.scalar('train_loss', self.abs_err)
             self.val_loss_summary = tf.summary.scalar('val_loss', self.abs_err)
 
@@ -96,7 +96,7 @@ class Model:
         """ Loads an existing pre-trained model from the model directory, if one exists. """
         check_point = tf.train.get_checkpoint_state(c.F_MODEL_DIR)
         if check_point and check_point.model_checkpoint_path:
-            print 'Restoring model from ' + check_point.model_checkpoint_path
+            print('Restoring model from ' + check_point.model_checkpoint_path)
             self.saver.restore(self.sess, check_point.model_checkpoint_path)
 
     def _process_images(self, img_batch):
@@ -114,8 +114,8 @@ class Model:
         self.saver.save(self.sess, c.F_MODEL_PATH, global_step=self.global_step)
 
     def _train_step(self, img_batch, label_batch, feedback_batch):
-        """ Executes a training step on a given training batch. Runs the train op 
-            on the given batch and regularly writes out training loss summaries 
+        """ Executes a training step on a given training batch. Runs the train op
+            on the given batch and regularly writes out training loss summaries
             and saves the model.
 
             :param img_batch: The batch images
@@ -135,21 +135,21 @@ class Model:
         if (step - 1) % c.MODEL_SAVE_FREQ == 0:
             self._save()
 
-        print ""
-        print "Completed step:", step
-        print "Training loss:", abs_err
-        print "Average prediction:", np.mean(feedback_predictions)
-        print "First prediction:", feedback_predictions[0]
+        print("")
+        print("Completed step:", step)
+        print("Training loss:", abs_err)
+        print("Average prediction:", np.mean(feedback_predictions))
+        print("First prediction:", feedback_predictions[0])
 
     def train(self, train_tup, val_tup):
-        """ Training loop. Trains & validates for the given number of epochs 
+        """ Training loop. Trains & validates for the given number of epochs
             on given data.
-            
+
             :param train_tup: All the training data; tuple of (images, labels, feedback)
             :param val_tup: All the validation data; tuple of (images, labels, feedback)
         """
-        for i in xrange(c.NUM_EPOCHS):
-            print "\nEpoch", i+1, "("+str(len(train_tup[0])/c.BATCH_SIZE)+" steps)"
+        for i in range(c.NUM_EPOCHS):
+            print("\nEpoch", i+1, "("+str(len(train_tup[0])/c.BATCH_SIZE)+" steps)")
             for imgs, labels, feedback in utils.gen_batches(train_tup):
                 self._train_step(imgs, labels, feedback)
             self._save()
@@ -169,7 +169,7 @@ class Model:
 
         #try all potential angles
         for potential_angle in c.DISCRETE_ANGLES:
-            angle_labels = [potential_angle for _ in xrange(len(imgs))]
+            angle_labels = [potential_angle for _ in range(len(imgs))]
             angle_feedback = sess.run([feedback_predictions], feed_dict={self.img_input: processed_imgs, self.labels: angle_labels})
             feedbacks.append(angle_feedback)
 
@@ -181,9 +181,9 @@ class Model:
         #write summary
         loss_summary = tf.Summary(value=[tf.Summary.Value(tag="val_loss", simple_value=abs_err)])
         self.summary_writer.add_summary(loss_summary, global_step=step)
-        
-        print ""
-        print "Valiation Loss:", abs_err
+
+        print("")
+        print("Valiation Loss:", abs_err)
 
     def eval_feedback(self, val_tup):
         """ Evaluates the feedback predictions on given data. Writes out a validation loss summary.
@@ -197,7 +197,3 @@ class Model:
                      self.labels: angles,
                      self.feeback: feedback}
         step, loss_summary, abs_err = self.sess.run(sess_args, feed_dict=feed_dict)
-
-        
-
-
