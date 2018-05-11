@@ -6,3 +6,4 @@ extra/
 *.npy
 *.pb
 *.pyc
+eval_feedback_data/
