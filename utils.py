@@ -1,5 +1,6 @@
 import constants as c
 import tensorflow as tf
+import numpy as np
 
 
 def conv_layers(scope_name, inpt, channel_sizes, kernels, strides):
@@ -57,16 +58,22 @@ def fc_layers(scope_name, inpt, fc_sizes, additional_input=None):
     return fc_layer
 
 
-def gen_batches(tup):
+def gen_batches(tup, shuffle=True, batch_sz=c.BATCH_SIZE):
     """ Returns a generator of batches, given data.
 
         :param tup: All the data to return in batches; tuple of
                     (images, labels, feedback)
 
+        :param suffle: whether to shuffle the data first
+
         :return: A generator of batches, each represented as a tuple of
                  (images, labels, feedback)
     """
     imgs, labels, feedback = tup
-    for s in range(0, len(imgs), c.BATCH_SIZE):
-        e = s + c.BATCH_SIZE
-        yield imgs[s:e], labels[s:e], feedback[s:e]
+    #shuffle or leave in order (shuffle indicies since multiple copies of dataset will not fit in mem)
+    permutation = np.random.permutation(len(imgs)) if shuffle else range(len(imgs))
+    #make batches
+    for s in range(0, len(imgs), batch_sz):
+        e = s + batch_sz
+        batch_indices = permutation[s:e]
+        yield imgs[batch_indices], labels[batch_indices], feedback[batch_indices]

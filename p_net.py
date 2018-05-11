@@ -11,10 +11,15 @@ class Model:
             initializes it for training/evaluation. Or loads in an existing
             re-trained model, if one exists.
         """
-        self.sess = tf.Session()
+        #for gpu use (allow some gpu to system)
+        sess_config = tf.ConfigProto()
+        sess_config.gpu_options.per_process_gpu_memory_fraction = 0.95
+        sess_config.gpu_options.allow_growth = True
+        self.sess = tf.Session(config=sess_config)
         self._define_graph()
 
         self.saver = tf.train.Saver()
+        # tensorboard thinks somthing in init (summary writer?) is overwriting a prev summary
         self.summary_writer = tf.summary.FileWriter(c.P_SUMMARY_DIR, self.sess.graph)
 
         #self.sess.run(tf.global_variables_initializer())
@@ -59,7 +64,8 @@ class Model:
                 ]))
 
         # make everything before chosen bottleneck tensor untrainable
-        self.bottleneck_tensor = tf.stop_gradient(self.bottleneck_tensor, name="bottleneck_stop_gradient")
+        if not c.TRAIN_INCEPTION_TOO:
+            self.bottleneck_tensor = tf.stop_gradient(self.bottleneck_tensor, name="bottleneck_stop_gradient")
         self.bottleneck_tensor = tf.squeeze(self.bottleneck_tensor, [0]) #there is extra dim of size 1 in their code
 
     def _add_retrain_ops(self):
@@ -70,6 +76,7 @@ class Model:
 
         with tf.name_scope('new_layers'):
             flattened_conv = utils.conv_layers("conv", self.bottleneck_tensor,
+            #flattened_conv = utils.conv_layers("conv", self.img_input, #to skip over inception net
                                                c.CONV_CHANNELS, c.CONV_KERNELS,
                                                c.CONV_STRIDES)
 
@@ -94,17 +101,24 @@ class Model:
                 self.loss = tf.reduce_mean(scaled_feedback * tf.abs(self.labels - self.predictions)**c.LOSS_EXPONENT)
             #metrics for summaries
             self.abs_err = tf.reduce_mean(tf.abs(self.labels - self.predictions))*c.MAX_ANGLE
-            self.train_loss_summary = tf.summary.scalar('train_loss', self.abs_err)
-            self.val_loss_summary = tf.summary.scalar('val_loss', self.abs_err)
+            self.train_loss_summary = tf.summary.scalar('train_loss'+c.TRIAL_STR, self.abs_err)
 
         with tf.name_scope('train'):
             optimizer = tf.train.AdamOptimizer(c.LRATE)
             self.train_op = optimizer.minimize(self.loss, global_step=self.global_step)
 
+    def saved_model_exists(self):
+        """ Checks whether a previous version has been trained
+
+        :return: True if a model has been trained already. False otherwise.
+        """
+        check_point = tf.train.get_checkpoint_state(c.P_MODEL_DIR)
+        return check_point and check_point.model_checkpoint_path
+
     def _load_model_if_exists(self):
         """ Loads an existing pre-trained model from the model directory, if one exists. """
-        check_point = tf.train.get_checkpoint_state(c.P_MODEL_DIR)
-        if check_point and check_point.model_checkpoint_path:
+        if self.saved_model_exists():
+            check_point = tf.train.get_checkpoint_state(c.P_MODEL_DIR)
             print('Restoring model from ' + check_point.model_checkpoint_path)
             self.saver.restore(self.sess, check_point.model_checkpoint_path)
 
@@ -122,7 +136,7 @@ class Model:
         """
         self.saver.save(self.sess, c.P_MODEL_PATH, global_step=self.global_step)
 
-    def _train_step(self, img_batch, label_batch, feedback_batch):
+    def _train_step(self, img_batch, label_batch, feedback_batch, initial_step, num_steps, val_tup):
         """ Executes a training step on a given training batch. Runs the train op
             on the given batch and regularly writes out training loss summaries
             and saves the model.
@@ -130,6 +144,7 @@ class Model:
             :param img_batch: The batch images
             :param label_batch: The batch labels
             :param feedback_batch: The batch human feedback
+            :param initial_step: The starting step number
         """
         processed_images = self._process_images(img_batch)
         sess_args = [self.global_step, self.train_loss_summary, self.predictions, self.abs_err, self.train_op]
@@ -138,19 +153,22 @@ class Model:
                      self.feedback: feedback_batch}
         step, loss_summary, predictions, abs_err, _ = self.sess.run(sess_args, feed_dict=feed_dict)
 
-        if (step - 1) % c.SUMMARY_SAVE_FREQ == 0:
-            self.summary_writer.add_summary(loss_summary, global_step=step)
-
-        if (step - 1) % c.MODEL_SAVE_FREQ == 0:
-            self._save()
-
         print("")
         print("Completed step:", step)
+        print(100.0*step/(num_steps+initial_step), "percent done with train session")
         print("Average error:", abs_err)
         print("Average prediction:", np.mean(predictions))
         print("First angle:", str(label_batch[0]) + ",", "prediction:", predictions[0])
         print("Middle angle:", str(label_batch[len(label_batch) // 2]) + ",", "prediction:", predictions[len(label_batch) // 2])
         print("Last angle:", str(label_batch[-1]) + ",", "prediction:", predictions[-1])
+
+        #summary and save
+        final_step = (step==(initial_step+num_steps))
+        if step%c.SUMMARY_SAVE_FREQ == 0 or final_step:
+            self.summary_writer.add_summary(loss_summary, global_step=step)
+            self.eval(val_tup, write_summary=True)
+        if step%c.MODEL_SAVE_FREQ == 0 or final_step:
+            self._save()
 
     def train(self, train_tup, val_tup):
         """ Training loop. Trains & validates for the given number of epochs
@@ -159,25 +177,44 @@ class Model:
             :param train_tup: All the training data; tuple of (images, labels, feedback)
             :param val_tup: All the validation data; tuple of (images, labels, feedback)
         """
+        #caclulate number of steps
+        steps_per_epc = int(np.ceil(len(train_tup[0])/c.BATCH_SIZE))
+        num_steps = c.NUM_EPOCHS * steps_per_epc
+        initial_step = self.sess.run(self.global_step)
+        print(num_steps, "steps total in this train session...")
+        #start training
+        self.eval(val_tup, write_summary=True) #eval always at start
         for i in range(c.NUM_EPOCHS):
-            print("\nEpoch", i+1, "("+str(len(train_tup[0])/c.BATCH_SIZE)+" steps)")
-            for imgs, labels, feedback in utils.gen_batches(train_tup):
-                self._train_step(imgs, labels, feedback)
-            self._save()
-            self.eval(val_tup)
+            print("\nEpoch", i+1, "out of", c.NUM_EPOCHS)
+            for imgs, labels, feedback in utils.gen_batches(train_tup, shuffle=True):
+                self._train_step(imgs, labels, feedback, initial_step, num_steps, val_tup)
 
-    def eval(self, val_tup):
+    def eval(self, val_tup, verbose=True, write_summary=False):
         """ Evaluates the model on given data. Writes out a validation loss summary.
 
             :param val_tup: The data to evaluate the model on; tuple of (images, labels, feedback)
+            :param verbose: Whether to print the error
+            :param write_summary: whether to write a summary at current timestep to disk (for training)
         """
-        imgs, labels, _ = val_tup
-        processed_imgs = self._process_images(imgs)
-        sess_args = [self.global_step, self.val_loss_summary, self.abs_err]
-        feed_dict = {self.img_input: processed_imgs,
-                     self.labels: labels}
-        step, loss_summary, abs_err = self.sess.run(sess_args, feed_dict=feed_dict)
-        self.summary_writer.add_summary(loss_summary, global_step=step)
+        if verbose:
+            print("validating...")
 
-        print("")
-        print("Valiation Loss:", abs_err)
+        error = 0.0
+        for imgs, labels, feedback in utils.gen_batches(val_tup, shuffle=False, batch_sz=c.EVAL_BATCH_SIZE):
+            processed_imgs = self._process_images(imgs)
+            sess_args = self.abs_err
+            feed_dict = {self.img_input: processed_imgs,
+                         self.labels: labels}
+            batch_abs_err = self.sess.run(sess_args, feed_dict=feed_dict)
+            error += len(imgs) * batch_abs_err #batches can be different lengths, so weight them
+        error /= len(val_tup[0])
+           
+        if write_summary: 
+            #make sumary mannually becuase its too large for one batch
+            step = self.sess.run(self.global_step)
+            loss_summary = tf.Summary(value=[tf.Summary.Value(tag='val_loss'+c.TRIAL_STR, simple_value=error)])
+            self.summary_writer.add_summary(loss_summary, global_step=step)
+
+        if verbose:
+            print("")
+            print("Valiation Loss:", error)

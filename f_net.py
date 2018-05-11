@@ -62,7 +62,8 @@ class Model:
                 ]))
 
         # make everything before chosen bottleneck tensor untrainable
-        self.bottleneck_tensor = tf.stop_gradient(self.bottleneck_tensor, name="bottleneck_stop_gradient")
+        if not c.TRAIN_INCEPTION_TOO:
+            self.bottleneck_tensor = tf.stop_gradient(self.bottleneck_tensor, name="bottleneck_stop_gradient")
         self.bottleneck_tensor = tf.squeeze(self.bottleneck_tensor, [0]) #there is extra dim of size 1 in their code
 
     def _add_retrain_ops(self):
@@ -84,18 +85,26 @@ class Model:
 
         with tf.name_scope('loss'):
             self.loss = tf.reduce_mean(tf.square(self.feedback - self.feedback_predictions))                    ##changed from p_net
-            self.abs_err = tf.reduce_mean(tf.abs(self.feedback - self.feedback_predictions)*c.MAX_ANGLE)                        ##changed from p_net
-            self.train_loss_summary = tf.summary.scalar('train_loss', self.abs_err)
-            self.val_loss_summary = tf.summary.scalar('val_loss', self.abs_err)
+            self.abs_err = tf.reduce_mean(tf.abs(self.feedback - self.feedback_predictions))                        ##changed from p_net
+            self.train_error_summary = tf.summary.scalar('train_feedback_error'+c.TRIAL_STR, self.abs_err)
+            #self.val_loss_summary = tf.summary.scalar('val_loss', self.abs_err)
 
         with tf.name_scope('train'):
             optimizer = tf.train.AdamOptimizer(c.LRATE)
             self.train_op = optimizer.minimize(self.loss, global_step=self.global_step)
 
+    def saved_model_exists(self):
+        """ Checks whether a previous version has been trained
+
+        :return: True if a model has been trained already. False otherwise.
+        """
+        check_point = tf.train.get_checkpoint_state(c.F_MODEL_DIR)
+        return check_point and check_point.model_checkpoint_path
+
     def _load_model_if_exists(self):
         """ Loads an existing pre-trained model from the model directory, if one exists. """
-        check_point = tf.train.get_checkpoint_state(c.F_MODEL_DIR)
-        if check_point and check_point.model_checkpoint_path:
+        if self.saved_model_exists():
+            check_point = tf.train.get_checkpoint_state(c.F_MODEL_DIR)
             print('Restoring model from ' + check_point.model_checkpoint_path)
             self.saver.restore(self.sess, check_point.model_checkpoint_path)
 
@@ -113,7 +122,7 @@ class Model:
         """
         self.saver.save(self.sess, c.F_MODEL_PATH, global_step=self.global_step)
 
-    def _train_step(self, img_batch, label_batch, feedback_batch):
+    def _train_step(self, img_batch, label_batch, feedback_batch, initial_step, num_steps, val_tup):
         """ Executes a training step on a given training batch. Runs the train op
             on the given batch and regularly writes out training loss summaries
             and saves the model.
@@ -121,25 +130,32 @@ class Model:
             :param img_batch: The batch images
             :param label_batch: The batch labels
             :param feedback_batch: The batch human feedback
+            :param initial_step: The starting step number
         """
         processed_images = self._process_images(img_batch)
-        sess_args = [self.global_step, self.train_loss_summary, self.feedback_predictions, self.abs_err, self.train_op]
+        sess_args = [self.global_step, self.train_error_summary, self.feedback_predictions, self.abs_err, self.train_op]
         feed_dict = {self.img_input: processed_images,
                      self.labels: label_batch,
                      self.feedback: feedback_batch}
-        step, loss_summary, feedback_predictions, abs_err, _ = self.sess.run(sess_args, feed_dict=feed_dict)
-
-        if (step - 1) % c.SUMMARY_SAVE_FREQ == 0:
-            self.summary_writer.add_summary(loss_summary, global_step=step)
-
-        if (step - 1) % c.MODEL_SAVE_FREQ == 0:
-            self._save()
+        step, error_summary, feedback_predictions, abs_err, _ = self.sess.run(sess_args, feed_dict=feed_dict)
 
         print("")
         print("Completed step:", step)
-        print("Training loss:", abs_err)
-        print("Average prediction:", np.mean(feedback_predictions))
-        print("First prediction:", feedback_predictions[0])
+        print(100.0*step/(num_steps+initial_step), "percent done with train session")
+        print("Average FEEDBACK error:", abs_err)
+        print("Average FEEDBACK prediction:", np.mean(feedback_predictions))
+        print("First F:", str(feedback_batch[0]) + ",", "f_prediction:", feedback_predictions[0])
+        print("Middle F:", str(feedback_batch[len(feedback_batch) // 2]) + ",", "f_prediction:", feedback_predictions[len(feedback_predictions) // 2])
+        print("Last F:", str(feedback_batch[-1]) + ",", "f_prediction:", feedback_predictions[-1])
+
+        #summary and save
+        final_step = (step==(initial_step+num_steps))
+        if step%c.SUMMARY_SAVE_FREQ == 0 or final_step:
+            self.summary_writer.add_summary(error_summary, global_step=step)
+            self.eval(val_tup, write_summary=True)
+
+        if step%c.MODEL_SAVE_FREQ == 0 or final_step:
+            self._save()
 
     def train(self, train_tup, val_tup):
         """ Training loop. Trains & validates for the given number of epochs
@@ -148,52 +164,83 @@ class Model:
             :param train_tup: All the training data; tuple of (images, labels, feedback)
             :param val_tup: All the validation data; tuple of (images, labels, feedback)
         """
+        #caclulate number of steps
+        steps_per_epc = int(np.ceil(len(train_tup[0])/c.BATCH_SIZE))
+        num_steps = c.NUM_EPOCHS * steps_per_epc
+        initial_step = self.sess.run(self.global_step)
+        print(num_steps, "steps total in this train session...")
+        #start training
+        self.eval(val_tup, write_summary=True) #eval always at start
         for i in range(c.NUM_EPOCHS):
-            print("\nEpoch", i+1, "("+str(len(train_tup[0])/c.BATCH_SIZE)+" steps)")
-            for imgs, labels, feedback in utils.gen_batches(train_tup):
-                self._train_step(imgs, labels, feedback)
-            self._save()
-            self.eval(val_tup)
+            print("\nEpoch", i+1, "out of", c.NUM_EPOCHS)
+            for imgs, labels, feedback in utils.gen_batches(train_tup, shuffle=True):
+                self._train_step(imgs, labels, feedback, initial_step, num_steps, val_tup)
 
-                                                                                                        ##changed from p_net
-    def eval(self, val_tup):
-        """ Evaluates the model on given data. Specifically, the angle that maximizes feedbacl.
-            Writes out a validation loss summary.
-
-            :param val_tup: The data to evaluate the model on; tuple of (images, labels, feedback)
+    def _eval_angle_on_batch(self, processed_imgs, labels, verbose=True):
+        """ Evaluates the angles implied by our model a single batch on given processed images.
+            
+            :param processed_imgs: The images for our batch with "self._process_images(imgs)" run on them.
+            :param labels: The angle labels we hope to replicate
+            :param verbose: Whether to print the predicted angles
         """
-        #get data
-        imgs, labels, _ = val_tup
-        processed_imgs = self._process_images(imgs)
         feedbacks = [] #rows are all same angle, col is all same img
 
         #try all potential angles
         for potential_angle in c.DISCRETE_ANGLES:
-            angle_labels = [potential_angle for _ in range(len(imgs))]
-            angle_feedback = sess.run([feedback_predictions], feed_dict={self.img_input: processed_imgs, self.labels: angle_labels})
+            angle_labels = [potential_angle for _ in range(len(processed_imgs))]
+            fd = {self.img_input: processed_imgs, self.labels: angle_labels}
+            angle_feedback = self.sess.run([self.feedback_predictions], feed_dict=fd)
             feedbacks.append(angle_feedback)
 
         #convert feebacks to numpy and get row that maximizes each column
         best_angle_numbers = np.argmax(np.array(feedbacks), axis=0)
-        angle_predictions = np.array([c.DISCRETE_ANGLES[num] for num in best_angle_numbers])
+        best_angle_numbers = np.squeeze(best_angle_numbers)
+        angle_predictions = np.array([c.DISCRETE_ANGLES[int(num)] for num in best_angle_numbers])
         abs_err = np.mean((angle_predictions-labels)**2)*c.MAX_ANGLE
+        if verbose:
+            print("\angle labels")
+            print(labels)
+            print("\npreds")
+            print(angle_predictions*c.MAX_ANGLE)
 
-        #write summary
-        loss_summary = tf.Summary(value=[tf.Summary.Value(tag="val_loss", simple_value=abs_err)])
-        self.summary_writer.add_summary(loss_summary, global_step=step)
+        return abs_err
 
-        print("")
-        print("Valiation Loss:", abs_err)
-
-    def eval_feedback(self, val_tup):
-        """ Evaluates the feedback predictions on given data. Writes out a validation loss summary.
+    def eval(self, val_tup, verbose=True, write_summary=False, evaluate_angle=False):
+        """ Evaluates the model on given data. Writes out a validation loss summary.
 
             :param val_tup: The data to evaluate the model on; tuple of (images, labels, feedback)
+            :param verbose: Whether to print. E.g. the error (and the predicted angles if evaluate_angle)
+            :param evaluate_angle: Wether to evaluate the anlge (implied by our net), as opposed to the feedback predicted 
+            :param write_summary: whether to write a summary at current timestep to disk (for training)
         """
-        imgs, angles, feedback = val_tup
-        processed_imgs = self._process_images(imgs)
-        sess_args = [self.global_step, self.val_loss_summary, self.abs_err]
-        feed_dict = {self.img_input: processed_imgs,
-                     self.labels: angles,
-                     self.feeback: feedback}
-        step, loss_summary, abs_err = self.sess.run(sess_args, feed_dict=feed_dict)
+        if verbose:
+            print("validating...")
+
+        #evalualt#
+        error = 0.0
+        for imgs, labels, feedback in utils.gen_batches(val_tup, shuffle=True, batch_sz=c.EVAL_BATCH_SIZE):
+            processed_imgs = self._process_images(imgs)
+            
+            if evaluate_angle:
+                batch_abs_err = self._eval_angle_on_batch(processed_imgs, labels, verbose)
+            else:
+                sess_args = self.abs_err
+                feed_dict = {self.img_input: processed_imgs,
+                             self.labels: labels,
+                             self.feedback: feedback}
+                batch_abs_err = self.sess.run(sess_args, feed_dict=feed_dict)
+
+            error += len(imgs) * batch_abs_err #batches can be different lengths, so weight them
+        error /= len(val_tup[0])
+        ##
+          
+        if write_summary:
+            #make sumary mannually becuase its too large for one batch
+            step = self.sess.run(self.global_step)
+            loss_summary = tf.Summary(value=[tf.Summary.Value(tag='val_feedback_error'+c.TRIAL_STR, simple_value=error)])
+            self.summary_writer.add_summary(loss_summary, global_step=step)
+
+        if verbose:
+            print("")
+            string = "ANGLE" if evaluate_angle else "FEEDBACK"
+            print("Valiation Loss [" + string + " predicition]:", error)

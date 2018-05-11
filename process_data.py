@@ -36,16 +36,17 @@ def get_img_path_and_label_tups(csv_filename, dirpath):
     for i, line in enumerate(file_lines):
         if i % c.EVERY_X_IMAGES == 0: #only take every "x" image. we have too much data
             line_items = line.split(",")
-            windows_path, label, feedback = line_items[0], float(line_items[3]), line_items[4] #float(line_items[4])
+            windows_path, label, unprocessed_feedback = line_items[0], float(line_items[3]), float(line_items[4]) #float(line_items[4])
+            feedback = process_angle_and_corection_to_feedback(label, unprocessed_feedback)
             image_name = windows_path.split("IMG\\")[1]
             path = os.path.join(dirpath, "IMG")
             path = os.path.join(path, image_name)
 
-            print("IF FEEDBACK IS NULL, setting to 999 for testing purposes... PLEASE REMOVE AND CONVERT TO FLOAT above ONCE DONE COLLECTING FEEDBACK")
-            if feedback == "null":
-                feedback = 999
-            else:
-                feedback = float(feedback)
+            # print("IF FEEDBACK IS NULL, setting to 999 for testing purposes... PLEASE REMOVE AND CONVERT TO FLOAT above ONCE DONE COLLECTING FEEDBACK")
+            # if feedback == "null":
+            #     feedback = 999
+            # else:
+            #     feedback = float(feedback)
 
             to_return.append( (path,label,feedback) )
 
@@ -56,13 +57,28 @@ def get_img_from_path(path):
     img = Image.open(path)
     return np.array(img)
 
+def process_angle_and_corection_to_feedback(theta, cor):
+    # if angle is greater than 75 degrees, its so bad it should be negative
+    if abs(cor) >= c.MAX_FEEDBACK_ANGLE:
+        return -0.5
+    
+    #scale
+    cor_scaled = cor/c.MAX_FEEDBACK_ANGLE
+
+    #see if good or bad
+    if ((theta>0) == (cor>0)) or (abs(cor)<=c.FEEDBACK_EPS): #signs are equal or theta within some eps of 0
+        f = 1.0 - abs(cor_scaled)
+    else:
+        f = -abs(cor_scaled)
+
+    return f
 
 
 
 if __name__ == "__main__":
 
     image_path_label_feedback_tups = [] #list of tuple of image paths and steering angle labels
-    for dirpath, dirnames, filenames in os.walk(os.getcwd()):
+    for dirpath, dirnames, filenames in os.walk(os.path.join(os.getcwd(), "eval_feedback_data")):
         for csv_filename in fnmatch.filter(filenames, '*.csv'):
             image_path_label_feedback_tups.extend(get_img_path_and_label_tups(csv_filename, dirpath))
     random.shuffle(image_path_label_feedback_tups)  #shuffle the data
@@ -81,6 +97,9 @@ if __name__ == "__main__":
     train_labels, train_feedback = list(train_labels), list(train_feedback)
     val_image_paths, val_labels, val_feedback = zip(*val_tups)
     val_labels, val_feedback = list(val_labels), list(val_feedback)
+    # print(max(max(val_feedback), max(train_feedback)))
+    # # the largest magnitude (unsclaed) is currently 21.744000000000025 as of 5/7
+    # exit()
 
     #convert paths to actual image data
     print("Reading in image data...")

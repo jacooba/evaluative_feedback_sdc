@@ -1,0 +1,15 @@
+all\ data/
+Model/
+Summary/
+inception/
+extra/
+PModel/checkpoint
+*.npy
+*.pb
+*.pyc
+*.jpg
+*.meta
+*.index
+*.DS_Store
+*.local
+*.data*

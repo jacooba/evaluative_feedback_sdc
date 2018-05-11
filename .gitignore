@@ -1,6 +1,7 @@
-all\ data/
-Model/
-Summary/
+PModel/
+PSummary/
+FModel/
+FSummary/
 inception/
 extra/
 PModel/checkpoint
