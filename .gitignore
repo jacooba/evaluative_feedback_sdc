@@ -3,7 +3,14 @@ Model/
 Summary/
 inception/
 extra/
+PModel/checkpoint
 *.npy
 *.pb
 *.pyc
 eval_feedback_data/
+*.jpg
+*.meta
+*.index
+*.DS_Store
+*.local
+*.data*
