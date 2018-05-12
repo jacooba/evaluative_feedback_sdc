@@ -100,8 +100,11 @@ class Model:
             else:
                 self.loss = tf.reduce_mean(scaled_feedback * tf.abs(self.labels - self.predictions)**c.LOSS_EXPONENT)
             #metrics for summaries
-            self.abs_err = tf.reduce_mean(tf.abs(self.labels - self.predictions))*c.MAX_ANGLE
-            self.train_loss_summary = tf.summary.scalar('train_loss'+c.TRIAL_STR, self.abs_err)
+            abs_errors = tf.abs(self.labels - self.predictions)*c.MAX_ANGLE
+            zero_mask = tf.nn.relu(tf.sign(self.feedback)) #only test on correct (pos) examples
+            abs_errors_masked = zero_mask*abs_errors
+            self.abs_err = tf.reduce_mean(abs_errors_masked)
+            self.train_loss_summary = tf.summary.scalar('train_error'+c.TRIAL_STR, self.abs_err)
 
         with tf.name_scope('train'):
             optimizer = tf.train.AdamOptimizer(c.LRATE)
@@ -155,7 +158,7 @@ class Model:
 
         print("")
         print("Completed step:", step)
-        print(100.0*step/(num_steps+initial_step), "percent done with train session")
+        print(100.0*(step-initial_step)/num_steps, "percent done with train session")
         print("Average error:", abs_err)
         print("Average prediction:", np.mean(predictions))
         print("First angle:", str(label_batch[0]) + ",", "prediction:", predictions[0])
@@ -200,11 +203,12 @@ class Model:
             print("validating...")
 
         error = 0.0
-        for imgs, labels, feedback in utils.gen_batches(val_tup, shuffle=False, batch_sz=c.EVAL_BATCH_SIZE):
+        for imgs, labels, feedback in utils.gen_batches(val_tup, shuffle=False, only_positive=True, batch_sz=c.EVAL_BATCH_SIZE):
             processed_imgs = self._process_images(imgs)
             sess_args = self.abs_err
             feed_dict = {self.img_input: processed_imgs,
-                         self.labels: labels}
+                         self.labels: labels,
+                         self.feedback: feedback}
             batch_abs_err = self.sess.run(sess_args, feed_dict=feed_dict)
             error += len(imgs) * batch_abs_err #batches can be different lengths, so weight them
         error /= len(val_tup[0])
@@ -212,7 +216,7 @@ class Model:
         if write_summary: 
             #make sumary mannually becuase its too large for one batch
             step = self.sess.run(self.global_step)
-            loss_summary = tf.Summary(value=[tf.Summary.Value(tag='val_loss'+c.TRIAL_STR, simple_value=error)])
+            loss_summary = tf.Summary(value=[tf.Summary.Value(tag='val_error'+c.TRIAL_STR, simple_value=error)])
             self.summary_writer.add_summary(loss_summary, global_step=step)
 
         if verbose:

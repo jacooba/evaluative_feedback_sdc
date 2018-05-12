@@ -58,22 +58,24 @@ def fc_layers(scope_name, inpt, fc_sizes, additional_input=None):
     return fc_layer
 
 
-def gen_batches(tup, shuffle=True, batch_sz=c.BATCH_SIZE):
+def gen_batches(tup, shuffle=True, batch_sz=c.BATCH_SIZE, only_positive=False):
     """ Returns a generator of batches, given data.
 
         :param tup: All the data to return in batches; tuple of
                     (images, labels, feedback)
-
         :param suffle: whether to shuffle the data first
+        :param only_positive: if true, only examples with positive feedback will be included
 
         :return: A generator of batches, each represented as a tuple of
                  (images, labels, feedback)
     """
     imgs, labels, feedback = tup
     #shuffle or leave in order (shuffle indicies since multiple copies of dataset will not fit in mem)
-    permutation = np.random.permutation(len(imgs)) if shuffle else range(len(imgs))
+    indicies = np.where(feedback>0.0)[0] if only_positive else np.array(range(len(imgs)))
+    if shuffle:
+        np.random.shuffle(indicies)
     #make batches
-    for s in range(0, len(imgs), batch_sz):
+    for s in range(0, len(indicies), batch_sz):
         e = s + batch_sz
-        batch_indices = permutation[s:e]
+        batch_indices = indicies[s:e]
         yield imgs[batch_indices], labels[batch_indices], feedback[batch_indices]

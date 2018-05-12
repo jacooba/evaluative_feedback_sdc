@@ -1,12 +1,14 @@
-all\ data/
-Model/
-Summary/
+PModel/
+PSummary/
+FModel/
+FSummary/
 inception/
 extra/
 PModel/checkpoint
 *.npy
 *.pb
 *.pyc
+eval_feedback_data/
 *.jpg
 *.meta
 *.index

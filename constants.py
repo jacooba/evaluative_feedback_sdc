@@ -7,21 +7,28 @@ import os
 
 #loss for policy net (only comuted within pnet, and if not using fnet as loss). 
 #Note, behavioral clone settings: ALPHA = 0.0, LOSS_EXPONENT=2, THRESHOLD_FEEDBACK = True
-ALPHA = 0.5 #[0,1] scale on negative feeback. (knob for making it less important).
+ALPHA = 0.0 #[0,1] scale on negative feeback. (knob for making it less important).
 LOSS_EXPONENT = 2 #loss = f*abs(y_hat-y)^LOSS_EXPONENT. 2 is mse.
 FEEDBACK_IN_EXPONENT = False #if true, loss = abs(y_hat-y)^(f*LOSS_EXPONENT)
-THRESHOLD_FEEDBACK = False #if true, loss will be -1(*alpha) or 1
+THRESHOLD_FEEDBACK = True #if true, loss will be -1(*alpha) or 1
+# note -- these losses were just calculated as difference in angle on pos data. 
+# but really not entirely appropriate since the loss favors cloning
+# really, it should get less loss for turning more in the right direction (not more since its farther from label)
+# weighting by feedback might help but still not quite correct
+# e.g. gradations in pos data were told to care about data unevenly, but tested evenly
+# also, val split here was 75-25
 # 3 runs, 80 steps each time, avg angle error, exp=2 ("mixed_2" [100, 300, 20] lr=1e-6):
-# exp feedback:                             24.74, 20.66, 17.25 -> avg = 20.88
-# scalar feedback:                          3.30,  2.48, 2.61 -> avg = *2.80*
+# exp feedback:                             16.88, 34.35, 16.93 -> avg = 
+# scalar feedback:                          2.42, 2.42, 3.06 -> avg = *2.63*
 
 # alpha set to 0.5
-# scalar feedback:                          2.96, 3.40, 3.53 -> avg = 3.30
+# scalar feedback:                           2.75, 2.57, 3.14 -> avg = 
+# exp feedback:                              9.68 -> avg =                          
 
 # alphs set to 0 (gradations on pos f)...
-# threshold to *clone*:                     4.59, 4.56, 3.02 -> avg = $4.06$
-# postive feedback as scalar:               3.33, 2.71, 3.72 -> ave = 3.25
-# positive exp feedback:                    3.84, 3.50, 2.80 -> avg = 3.38
+# threshold to *clone*:                      2.52, 2.37, 2.59 -> avg = $2.49$
+# postive feedback as scalar:                3.56, 3.41, 3.96 -> avg = 
+# positive exp feedback:                     -> avg =  
 
 # note: angles induced by f-net seem to be more extreme
 
@@ -50,7 +57,7 @@ DISCRETE_ANGLES = [angle/MAX_ANGLE for angle in [-15, -10, -8, -6, -5, -4, -3, -
 DROP_RATE = 0.0
 BATCH_NORM = False
 
-NUM_EPOCHS = 1 #1
+NUM_EPOCHS = 5 #1
 LRATE = 1e-6 #1e-9 
 #with f_c = [20, 10] and conv_4: (really should've picked archtirecutre first)
 #1e-12 could try but I think I did. likely lower bound.
@@ -99,18 +106,31 @@ FC_CHANNELS = [100, 300, 20] #[100, 300, 20] #[100, 80, 20] #[20, 10]
 #this string will be appeneded to your summary names
 #if you leave tensorboard open and do not change this, 
 #it will get confused by all the summaries on the same plot
-TRIAL_STR = "" 
+TRIAL_STR = "mixed_2_100_300_20_lr=1e-6_fnet" 
 #need to change loss and architecture together (or set architecture first)
+#f_net...
 # "mixed_2_100_300_20_lr=1e-5" was really good! down to  0.1877! (decr lr a bit)
-# "mixed_2_100_300_20_lr=1e-6" was really good! down to  0.24! (decr lr a bit)
-    #after 3 epochs it got to 1.9999999 but stopped chaning much. really only need 1.5 epc. lower lr???
+# $$"mixed_2_100_300_20_lr=1e-6" was really good! down to  0.24! (decr lr a bit)
+    #after 3 epochs it got to 1.9999999 but stopped chaning much. really only need 1.5 epc. higher lr???
+#p-net..
+# "mixed_2_100_300_20_lr=1e-5_pnet" -> get down to 2 but looks like it starts to overfit. but may be an artificat of error metric 
+# $$"mixed_2_100_300_20_lr=1e-6_pnet" -> sharp down, but then still linearly going down to ~2.7 after 2 epc
+# "mixed_2_100_300_20_lr=1e-7_pnet" -> flattens out after two epcs to 3.27 (not good enough)
+#p-net exp..
+# "mixed_2_100_300_20_lr=1e-6_pnet_exp" -> ...
+####
+# "mixed_2_100_300_20_lr=1e-6_pnet" f-scalar 5 epc -> err = 1.994
+# "mixed_2_100_300_20_lr=1e-6_pnet_clone" clone 5 epc -> err = 1.915
+# "mixed_2_100_300_20_lr=1e-xxx_pnet_exp" f-exp 5 epc -> err = ...
+# "mixed_2_100_300_20_lr=1e-6_fnet" f-net 5 epc -> (f)err = 0.1988
+####
 
 IMAGE_INPUT_TENSOR_NAME = 'Mul'
 BOTTLENECK_TENSOR_NAME = "mixed_2/join:0" #"conv_4/Conv2D:0" #"mixed_10/join:0" #'pool_3/_reshape:0'
 #note, there should be 4 convs (1-4), then 10 mixed. The 3 pools are interspersed.
 TRAIN_INCEPTION_TOO = True #whether to add a stop gradient after inception layers
 
-SUMMARY_SAVE_FREQ = 80 #55 #50 #100 #30
+SUMMARY_SAVE_FREQ = 50 #80 #55 #50 #100 #30
 MODEL_SAVE_FREQ = 9999999999 #200
 
 INCEPTION_DIR = "inception"
@@ -126,7 +146,7 @@ F_MODEL_DIR = os.path.join(os.getcwd(), "FModel")
 F_MODEL_PATH = os.path.join(F_MODEL_DIR, "model")
 
 EVERY_X_IMAGES = 5 #down sample the frequency of images (for processing)
-VAL_FRAC = .25
+VAL_FRAC = .15
 
 TRAIN_DATA_PATH = "trainData" # data
 VAL_DATA_PATH = "valData"
