@@ -141,7 +141,7 @@ class Model:
 
         print("")
         print("Completed step:", step)
-        print(100.0*step/(num_steps+initial_step), "percent done with train session")
+        print(100.0*(step-initial_step)/num_steps, "percent done with train session")
         print("Average FEEDBACK error:", abs_err)
         print("Average FEEDBACK prediction:", np.mean(feedback_predictions))
         print("First F:", str(feedback_batch[0]) + ",", "f_prediction:", feedback_predictions[0])
@@ -176,24 +176,25 @@ class Model:
             for imgs, labels, feedback in utils.gen_batches(train_tup, shuffle=True):
                 self._train_step(imgs, labels, feedback, initial_step, num_steps, val_tup)
 
-    def _eval_angle_on_batch(self, processed_imgs, labels, verbose=True):
+    def _eval_angle_on_batch(self, processed_imgs, labels, feedback, verbose=True):
         """ Evaluates the angles implied by our model a single batch on given processed images.
             
             :param processed_imgs: The images for our batch with "self._process_images(imgs)" run on them.
             :param labels: The angle labels we hope to replicate
+            :param feedback: The feedback on the images so we know which to validate on
             :param verbose: Whether to print the predicted angles
         """
-        feedbacks = [] #rows are all same angle, col is all same img
+        feedback_preds = [] #rows are all same angle, col is all same img
 
         #try all potential angles
         for potential_angle in c.DISCRETE_ANGLES:
             angle_labels = [potential_angle for _ in range(len(processed_imgs))]
             fd = {self.img_input: processed_imgs, self.labels: angle_labels}
             angle_feedback = self.sess.run([self.feedback_predictions], feed_dict=fd)
-            feedbacks.append(angle_feedback)
+            feedback_preds.append(angle_feedback)
 
         #convert feebacks to numpy and get row that maximizes each column
-        best_angle_numbers = np.argmax(np.array(feedbacks), axis=0)
+        best_angle_numbers = np.argmax(np.array(feedback_preds), axis=0)
         best_angle_numbers = np.squeeze(best_angle_numbers)
         angle_predictions = np.array([c.DISCRETE_ANGLES[int(num)] for num in best_angle_numbers])
         abs_err = np.mean((angle_predictions-labels)**2)*c.MAX_ANGLE
@@ -218,11 +219,11 @@ class Model:
 
         #evalualt#
         error = 0.0
-        for imgs, labels, feedback in utils.gen_batches(val_tup, shuffle=True, batch_sz=c.EVAL_BATCH_SIZE):
+        for imgs, labels, feedback in utils.gen_batches(val_tup, shuffle=True, only_positive=evaluate_angle, batch_sz=c.EVAL_BATCH_SIZE):
             processed_imgs = self._process_images(imgs)
             
             if evaluate_angle:
-                batch_abs_err = self._eval_angle_on_batch(processed_imgs, labels, verbose)
+                batch_abs_err = self._eval_angle_on_batch(processed_imgs, labels, feedback, verbose)
             else:
                 sess_args = self.abs_err
                 feed_dict = {self.img_input: processed_imgs,
