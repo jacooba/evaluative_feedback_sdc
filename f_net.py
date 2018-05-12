@@ -199,7 +199,9 @@ class Model:
         angle_predictions = np.array([c.DISCRETE_ANGLES[int(num)] for num in best_angle_numbers])
         abs_err = np.mean((angle_predictions-labels)**2)*c.MAX_ANGLE
         if verbose:
-            print("\angle labels")
+            print("\nf-preds by angle")
+            print(np.array(feedback_preds)[:,:3])
+            print("\nangle labels")
             print(labels)
             print("\npreds")
             print(angle_predictions*c.MAX_ANGLE)

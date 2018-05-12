@@ -7,10 +7,10 @@ import os
 
 #loss for policy net (only comuted within pnet, and if not using fnet as loss). 
 #Note, behavioral clone settings: ALPHA = 0.0, LOSS_EXPONENT=2, THRESHOLD_FEEDBACK = True
-ALPHA = 0.0 #[0,1] scale on negative feeback. (knob for making it less important).
+ALPHA = 1.0 #[0,1] scale on negative feeback. (knob for making it less important).
 LOSS_EXPONENT = 2 #loss = f*abs(y_hat-y)^LOSS_EXPONENT. 2 is mse.
 FEEDBACK_IN_EXPONENT = False #if true, loss = abs(y_hat-y)^(f*LOSS_EXPONENT)
-THRESHOLD_FEEDBACK = True #if true, loss will be -1(*alpha) or 1
+THRESHOLD_FEEDBACK = False #if true, loss will be -1(*alpha) or 1
 # note -- these losses were just calculated as difference in angle on pos data. 
 # but really not entirely appropriate since the loss favors cloning
 # really, it should get less loss for turning more in the right direction (not more since its farther from label)
@@ -79,6 +79,20 @@ CONV_KERNELS = []
 CONV_STRIDES = []
 
 FC_CHANNELS = [100, 300, 20] #[100, 300, 20] #[100, 80, 20] #[20, 10]
+# with [100, 300, 20], f-net seems to vary a lot with image, but not with angle.
+# likely enough to predict by which way you are facing then which way you steer
+# e.g. if heading off road, those will all have same img, but only split second with different label
+# before change occurs
+#### f-preds by angle and image
+# [[[0.27463108 0.8966497  0.8142399  ... 0.61680347 0.70496565 0.85056734]]
+#  [[0.27106214 0.8953991  0.8142741  ... 0.6152304  0.70133996 0.8501611 ]]
+#  [[0.26963258 0.8948949  0.81419414 ... 0.6144671  0.6998794  0.8499993 ]]
+#  ...
+#  [[0.25777608 0.8907649  0.8126278  ... 0.6096654  0.68775004 0.84868026]]
+#  [[0.25635573 0.89021856 0.81237054 ... 0.60916096 0.68617576 0.84817505]]
+#  [[0.2523774  0.8888414  0.8117536  ... 0.607898   0.68272495 0.8468019 ]]]
+####
+# also tried with [10,5]... not better. pretty much all 15.
 
 #configs tests:
 # mixed_4  [100, 80, 20]. great val loss slope, but too slow (straight line from 0.95 to 0.87 took like 6 epochs)
@@ -106,22 +120,25 @@ FC_CHANNELS = [100, 300, 20] #[100, 300, 20] #[100, 80, 20] #[20, 10]
 #this string will be appeneded to your summary names
 #if you leave tensorboard open and do not change this, 
 #it will get confused by all the summaries on the same plot
-TRIAL_STR = "mixed_2_100_300_20_lr=1e-6_fnet" 
+TRIAL_STR = "" 
 #need to change loss and architecture together (or set architecture first)
 #f_net...
 # "mixed_2_100_300_20_lr=1e-5" was really good! down to  0.1877! (decr lr a bit)
 # $$"mixed_2_100_300_20_lr=1e-6" was really good! down to  0.24! (decr lr a bit)
     #after 3 epochs it got to 1.9999999 but stopped chaning much. really only need 1.5 epc. higher lr???
-#p-net..
+#p-net.. 
 # "mixed_2_100_300_20_lr=1e-5_pnet" -> get down to 2 but looks like it starts to overfit. but may be an artificat of error metric 
 # $$"mixed_2_100_300_20_lr=1e-6_pnet" -> sharp down, but then still linearly going down to ~2.7 after 2 epc
 # "mixed_2_100_300_20_lr=1e-7_pnet" -> flattens out after two epcs to 3.27 (not good enough)
 #p-net exp..
-# "mixed_2_100_300_20_lr=1e-6_pnet_exp" -> ...
+# "mixed_2_100_300_20_lr=1e-6_pnet_exp" -> in terms of error, there are some bumps but curve looks good after ~10 epcs
+                                           #lower or higher lr didnt work well i think
 ####
 # "mixed_2_100_300_20_lr=1e-6_pnet" f-scalar 5 epc -> err = 1.994
 # "mixed_2_100_300_20_lr=1e-6_pnet_clone" clone 5 epc -> err = 1.915
-# "mixed_2_100_300_20_lr=1e-xxx_pnet_exp" f-exp 5 epc -> err = ...
+# "mixed_2_100_300_20_lr=1e-6_pnet_exp" f-exp 11 epc -> err = 11.24
+# "mixed_2_100_300_20_lr=1e-6_pnet_exp_alphahalf" f-exp a=0.5  -> err = seems to diverge
+# "mixed_2_100_300_20_lr=1e-6_pnet_exp_alphatenth" f-exp a=0.5 2 epc -> err = 5.84 5 epc-> 4.978
 # "mixed_2_100_300_20_lr=1e-6_fnet" f-net 5 epc -> (f)err = 0.1988
 ####
 
