@@ -31,7 +31,7 @@ def telemetry(sid, data):
     global state, action, model, session_id, ep_reward
 
     state = data["image"]
-    action = model.get_action(state)
+    action = model.get_one_angle(state)
 
     print("--------------")
     print('Action: ', action)
