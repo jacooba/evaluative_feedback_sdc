@@ -235,5 +235,5 @@ class Model:
         processed_img = self._process_images(state)
         sess_args = self.predictions
         feed_dict = {self.img_input: processed_img}
-        angle = self.sess.run(sess_args, feed_dict=feed_dict)
+        angle = self.sess.run(sess_args, feed_dict=feed_dict)[0]
         return angle
