@@ -230,3 +230,10 @@ class Model:
         if verbose:
             print("")
             print("Valiation Loss:", error)
+
+    def get_one_angle(self, state):
+        processed_img = self._process_images(state)
+        sess_args = self.predictions
+        feed_dict = {self.img_input: processed_img}
+        angle = self.sess.run(sess_args, feed_dict=feed_dict)
+        return angle
