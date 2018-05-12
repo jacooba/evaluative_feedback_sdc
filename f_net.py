@@ -176,13 +176,10 @@ class Model:
             for imgs, labels, feedback in utils.gen_batches(train_tup, shuffle=True):
                 self._train_step(imgs, labels, feedback, initial_step, num_steps, val_tup)
 
-    def _eval_angle_on_batch(self, processed_imgs, labels, feedback, verbose=True):
-        """ Evaluates the angles implied by our model a single batch on given processed images.
-            
-            :param processed_imgs: The images for our batch with "self._process_images(imgs)" run on them.
-            :param labels: The angle labels we hope to replicate
-            :param feedback: The feedback on the images so we know which to validate on
-            :param verbose: Whether to print the predicted angles
+    def _get_angle_preds_on_batch(self, processed_imgs):
+        """ Returns angles that maximize feedaback for a batch of processed images
+
+            :param processed_imgs: the images to predict on. (processed already)
         """
         feedback_preds = [] #rows are all same angle, col is all same img
 
@@ -197,7 +194,22 @@ class Model:
         best_angle_numbers = np.argmax(np.array(feedback_preds), axis=0)
         best_angle_numbers = np.squeeze(best_angle_numbers)
         angle_predictions = np.array([c.DISCRETE_ANGLES[int(num)] for num in best_angle_numbers])
-        abs_err = np.mean((angle_predictions-labels)**2)*c.MAX_ANGLE
+
+        return angle_predictions
+
+    def _eval_angle_on_batch(self, processed_imgs, labels, verbose=True):
+        """ Evaluates the angles implied by our model a single batch on given processed images.
+            
+            :param processed_imgs: The images for our batch with "self._process_images(imgs)" run on them.
+            :param labels: The angle labels we hope to replicate
+            :param verbose: Whether to print the predicted angles
+
+            :return: The error on the batch
+        """
+        angle_predictions = self._get_angle_preds_on_batch(processed_imgs)
+        
+        abs_err = np.mean(np.abs(angle_predictions-labels))*c.MAX_ANGLE
+        
         if verbose:
             print("\nf-preds by angle")
             print(np.array(feedback_preds)[:,:3])
@@ -225,7 +237,7 @@ class Model:
             processed_imgs = self._process_images(imgs)
             
             if evaluate_angle:
-                batch_abs_err = self._eval_angle_on_batch(processed_imgs, labels, feedback, verbose)
+                batch_abs_err = self._eval_angle_on_batch(processed_imgs, labels, verbose)
             else:
                 sess_args = self.abs_err
                 feed_dict = {self.img_input: processed_imgs,
@@ -240,10 +252,22 @@ class Model:
         if write_summary:
             #make sumary mannually becuase its too large for one batch
             step = self.sess.run(self.global_step)
-            loss_summary = tf.Summary(value=[tf.Summary.Value(tag='val_feedback_error'+c.TRIAL_STR, simple_value=error)])
-            self.summary_writer.add_summary(loss_summary, global_step=step)
+            error_summary = tf.Summary(value=[tf.Summary.Value(tag='val_feedback_error'+c.TRIAL_STR, simple_value=error)])
+            self.summary_writer.add_summary(error_summary, global_step=step)
 
         if verbose:
             print("")
             string = "ANGLE" if evaluate_angle else "FEEDBACK"
             print("Valiation Loss [" + string + " predicition]:", error)
+
+       def get_one_angle(self, state):
+        """ Get the steering angle predicted for one image
+
+            :param state: an unprocessed image to be predicted on
+
+            :return: the angle predicted for that state
+        """
+        processed_imgs = self._process_images(np.array([state]))
+        angle = self._get_angle_preds_on_batch(processed_imgs)[0]
+        return angle
+        

@@ -232,8 +232,14 @@ class Model:
             print("Valiation Loss:", error)
 
     def get_one_angle(self, state):
-        processed_img = self._process_images(state)
+        """ Get the steering angle predicted for one image
+
+            :param state: an unprocessed image to be predicted on
+
+            :return: the angle predicted for that state
+        """
+        processed_imgs = self._process_images(np.array([state]))
         sess_args = self.predictions
-        feed_dict = {self.img_input: processed_img}
+        feed_dict = {self.img_input: processed_imgs}
         angle = self.sess.run(sess_args, feed_dict=feed_dict)[0]
         return angle
