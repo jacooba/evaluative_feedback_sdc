@@ -229,7 +229,7 @@ class Model:
 
         if verbose:
             print("")
-            print("Valiation Loss:", error)
+            print("Validation Error:", error)
 
     def get_one_angle(self, state):
         """ Get the steering angle predicted for one image

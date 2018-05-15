@@ -7,7 +7,7 @@ import os
 
 #loss for policy net (only comuted within pnet, and if not using fnet as loss). 
 #Note, behavioral clone settings: ALPHA = 0.0, LOSS_EXPONENT=2, THRESHOLD_FEEDBACK = True
-ALPHA = 1.0 #[0,1] scale on negative feeback. (knob for making it less important).
+ALPHA = 1.0 #[0,1] scale on negative feeback. (knob for making it less important. deoends on data collection. 2x neg data may reuire 0.5x).
 LOSS_EXPONENT = 2 #loss = f*abs(y_hat-y)^LOSS_EXPONENT. 2 is mse.
 FEEDBACK_IN_EXPONENT = False #if true, loss = abs(y_hat-y)^(f*LOSS_EXPONENT)
 THRESHOLD_FEEDBACK = False #if true, loss will be -1(*alpha) or 1
@@ -16,7 +16,8 @@ THRESHOLD_FEEDBACK = False #if true, loss will be -1(*alpha) or 1
 # really, it should get less loss for turning more in the right direction (not more since its farther from label)
 # weighting by feedback might help but still not quite correct
 # e.g. gradations in pos data were told to care about data unevenly, but tested evenly
-# also, val split here was 75-25
+# also we are hoping feedback helps so it doesnt learn to do eaxctly what we did, but better than what we did
+# --val split here was 75-25
 # 3 runs, 80 steps each time, avg angle error, exp=2 ("mixed_2" [100, 300, 20] lr=1e-6):
 # exp feedback:                             16.88, 34.35, 16.93 -> avg = 
 # scalar feedback:                          2.42, 2.42, 3.06 -> avg = *2.63*
@@ -83,6 +84,8 @@ FC_CHANNELS = [100, 300, 20] #[100, 300, 20] #[100, 80, 20] #[20, 10]
 # likely enough to predict by which way you are facing then which way you steer
 # e.g. if heading off road, those will all have same img, but only split second with different label
 # before change occurs
+# really, that state where you start to turn back is the only one where it is pointed off road but has seen both
+# angles. In this case, -15 or 15 probably is best.
 #### f-preds by angle and image
 # [[[0.27463108 0.8966497  0.8142399  ... 0.61680347 0.70496565 0.85056734]]
 #  [[0.27106214 0.8953991  0.8142741  ... 0.6152304  0.70133996 0.8501611 ]]
@@ -94,7 +97,7 @@ FC_CHANNELS = [100, 300, 20] #[100, 300, 20] #[100, 80, 20] #[20, 10]
 ####
 # also tried with [10,5]... not better. pretty much all 15.
 
-#configs tests:
+#configs tests (tuning records):
 # mixed_4  [100, 80, 20]. great val loss slope, but too slow (straight line from 0.95 to 0.87 took like 6 epochs)
 # conv_4 [30, 300, 10]. ^ same  (1.58 to 1.50)
 # mixed_4 [20, 10] decreasing stright line super slow (1.34, 1.33)
@@ -121,7 +124,7 @@ FC_CHANNELS = [100, 300, 20] #[100, 300, 20] #[100, 80, 20] #[20, 10]
 #if you leave tensorboard open and do not change this, 
 #it will get confused by all the summaries on the same plot
 TRIAL_STR = "" 
-#need to change loss and architecture together (or set architecture first)
+#tuning records... need to change loss and architecture together (or set architecture first)
 #f_net...
 # "mixed_2_100_300_20_lr=1e-5" was really good! down to  0.1877! (decr lr a bit)
 # $$"mixed_2_100_300_20_lr=1e-6" was really good! down to  0.24! (decr lr a bit)
@@ -133,14 +136,49 @@ TRIAL_STR = ""
 #p-net exp..
 # "mixed_2_100_300_20_lr=1e-6_pnet_exp" -> in terms of error, there are some bumps but curve looks good after ~10 epcs
                                            #lower or higher lr didnt work well i think
-####
-# "mixed_2_100_300_20_lr=1e-6_pnet" f-scalar 5 epc -> err = 1.994
+
+#### FULL MODELS SAVED (will be on my google drive) ####
+# CLONE #
 # "mixed_2_100_300_20_lr=1e-6_pnet_clone" clone 5 epc -> err = 1.915
-# "mixed_2_100_300_20_lr=1e-6_pnet_exp" f-exp 11 epc -> err = 11.24
-# "mixed_2_100_300_20_lr=1e-6_pnet_exp_alphahalf" f-exp a=0.5  -> err = seems to diverge
-# "mixed_2_100_300_20_lr=1e-6_pnet_exp_alphatenth" f-exp a=0.5 2 epc -> err = 5.84 5 epc-> 4.978
+# "_clone_trial_2___valerr=2.014_loss=0.0035"
+# "_clone_trial_3___valerr=1.874_loss=0.0031"
+
+# SCALAR #
+# "mixed_2_100_300_20_lr=1e-6_pnet" f-scalar 5 epc -> err = 1.994
+# "_scalar_trial_2___valerr=2.374_loss=0.0020" *loss still decreasing*
+# "_scalar_2xlr___valerr=2.555_loss=0.000083"
+# "_scalar_5xlr___valerr=3.130_loss=-.0016"
+# "_scalar_10xlr___valerr=2.057_loss=0.0011"
+# "_scalar_THRESHOLD_alpha_1.0___valerr=2.648_loss=0.0027"
+# "_scalar_THRESHOLD_alpha_0.5___valerr=2.012_loss=0.0031"
+# "_scalar_THRESHOLD_alpha_0.1___valerr=1.843_loss=0.0030"
+# "_scalar_alpha_0.5___valerr= 2.261_loss=0.0033"
+# "_scalar_alpha_0.5_5xlr___valerr=2.337_loss=0.0021"
+# "_scalar_alpha_0.5_5xlr_THRESHOLD___valerr=1.940_loss=0.0025"
+# "_scalar_alpha_0.25___valerr=2.352_loss=0.0036"
+# "_scalar_alpha_0.1___valerr=2.063_loss=0.0030"
+# "_scalar_alpha_0___valerr=2.367_loss=0.0038"
+# "_scalar_alpha_0_10xlr___valerr=1.751_loss=0.0024"
+# "_scalar_alpha_0_5xlr___valerr=1.880_loss=0.0025"
+# ..redoing best one in terms of performance..
+# "_trial_2_scalar_10xlr___valerr=3.104_loss=-0.0035"
+# "_trial_3_scalar_10xlr___valerr=3.016_loss=-0.0040"
+
+# exp #
+# "mixed_2_100_300_20_lr=1e-6_pnet_exp" f-exp 11 epc -> err = 11.24, loss=0.3817
+# "mixed_2_100_300_20_lr=1e-6_pnet_exp_alphahalf" f-exp a=0.5  -> err = seems to diverge model not saved
+# "mixed_2_100_300_20_lr=1e-6_pnet_exp_alphatenth" f-exp a=0.5 2 epc -> err = 5.84 5 epc-> 4.978, loss=0.1544
+#^couldnt get err even close to 2. thresholding might help this.
+# "_exp_THRESHOLD___valerr=32.316_loss=32.32" ->diverged. model not saved.
+# "_exp___valerr=29.03_loss=32.25" ->diverged. not saved.
+# "_exp_THRESHOLD_alpha_0.1___valerr=5.876_loss=0.1699"
+
+# f-net #
 # "mixed_2_100_300_20_lr=1e-6_fnet" f-net 5 epc -> (f)err = 0.1988
 ####
+
+#note on f: we didnt add to angle and do behave clone on that b/c turns are do hard
+# to get right if you cant see outcome of your action. only realtive works.
 
 IMAGE_INPUT_TENSOR_NAME = 'Mul'
 BOTTLENECK_TENSOR_NAME = "mixed_2/join:0" #"conv_4/Conv2D:0" #"mixed_10/join:0" #'pool_3/_reshape:0'
@@ -164,6 +202,7 @@ F_MODEL_PATH = os.path.join(F_MODEL_DIR, "model")
 
 EVERY_X_IMAGES = 5 #down sample the frequency of images (for processing)
 VAL_FRAC = .15
+#right now, using 17,918 train and 3,162 val data after 2x aug
 
 TRAIN_DATA_PATH = "trainData" # data
 VAL_DATA_PATH = "valData"

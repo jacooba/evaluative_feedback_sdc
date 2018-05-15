@@ -192,7 +192,7 @@ class Model:
 
         #convert feebacks to numpy and get row that maximizes each column
         best_angle_numbers = np.argmax(np.array(feedback_preds), axis=0)
-        best_angle_numbers = np.squeeze(best_angle_numbers)
+        best_angle_numbers = np.squeeze(best_angle_numbers, axis=0)
         angle_predictions = np.array([c.DISCRETE_ANGLES[int(num)] for num in best_angle_numbers])
 
         return angle_predictions
@@ -258,9 +258,9 @@ class Model:
         if verbose:
             print("")
             string = "ANGLE" if evaluate_angle else "FEEDBACK"
-            print("Valiation Loss [" + string + " predicition]:", error)
+            print("Validation Error [" + string + " predicition]:", error)
 
-       def get_one_angle(self, state):
+    def get_one_angle(self, state):
         """ Get the steering angle predicted for one image
 
             :param state: an unprocessed image to be predicted on
