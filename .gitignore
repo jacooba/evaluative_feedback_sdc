@@ -4,6 +4,7 @@ FModel/
 FSummary/
 inception/
 extra/
+MODEL_SAVES/
 *.npy
 *.pb
 *.pyc
