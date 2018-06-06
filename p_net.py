@@ -97,13 +97,15 @@ class Model:
             #put feedback in correct place
             if c.FEEDBACK_IN_EXPONENT:
                 self.loss = tf.reduce_mean(tf.abs(self.labels - self.predictions)**(scaled_feedback*c.LOSS_EXPONENT))
+            elif c.SIGN_IN_EXPONENT:
+                self.loss = tf.reduce_mean(tf.abs(scaled_feedback) * tf.abs(self.labels - self.predictions)**(tf.sign(self.feedback)*c.LOSS_EXPONENT))
             else:
                 self.loss = tf.reduce_mean(scaled_feedback * tf.abs(self.labels - self.predictions)**c.LOSS_EXPONENT)
             #metrics for summaries
             abs_errors = tf.abs(self.labels - self.predictions)*c.MAX_ANGLE
             zero_mask = tf.nn.relu(tf.sign(self.feedback)) #only test on correct (pos) examples
             abs_errors_masked = zero_mask*abs_errors
-            self.abs_err = tf.reduce_mean(abs_errors_masked)
+            self.abs_err = tf.reduce_mean(abs_errors_masked) #reduce mean is not an issue here since there are the same number of negative examples in data every time
             self.train_error_summary = tf.summary.scalar('train_error'+c.TRIAL_STR, self.abs_err)
 
         with tf.name_scope('train'):
@@ -160,10 +162,10 @@ class Model:
         print("Completed step:", step)
         print(100.0*(step-initial_step)/num_steps, "percent done with train session")
         print("Average error:", abs_err)
-        print("Average prediction:", np.mean(predictions))
-        print("First angle:", str(label_batch[0]) + ",", "prediction:", predictions[0])
-        print("Middle angle:", str(label_batch[len(label_batch) // 2]) + ",", "prediction:", predictions[len(label_batch) // 2])
-        print("Last angle:", str(label_batch[-1]) + ",", "prediction:", predictions[-1])
+        print("Average prediction:", c.MAX_ANGLE*np.mean(predictions))
+        print("First angle:", str(label_batch[0]*c.MAX_ANGLE) + ",", "prediction:", predictions[0]*c.MAX_ANGLE)
+        print("Middle angle:", str(label_batch[len(label_batch) // 2]*c.MAX_ANGLE) + ",", "prediction:", predictions[len(label_batch) // 2]*c.MAX_ANGLE)
+        print("Last angle:", str(label_batch[-1]*c.MAX_ANGLE) + ",", "prediction:", predictions[-1]*c.MAX_ANGLE)
 
         #summary and save
         final_step = (step==(initial_step+num_steps))

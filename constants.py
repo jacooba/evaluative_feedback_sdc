@@ -7,10 +7,12 @@ import os
 
 #loss for policy net (only comuted within pnet, and if not using fnet as loss). 
 #Note, behavioral clone settings: ALPHA = 0.0, LOSS_EXPONENT=2, THRESHOLD_FEEDBACK = True
-ALPHA = 1.0 #[0,1] scale on negative feeback. (knob for making it less important. deoends on data collection. 2x neg data may reuire 0.5x).
-LOSS_EXPONENT = 2 #loss = f*abs(y_hat-y)^LOSS_EXPONENT. 2 is mse.
+ALPHA = 1.0 #1e-8 #1.0 #[0,1] scale on negative feeback. (knob for making it less important. deoends on data collection. 2x neg data may reuire 0.5x).
+LOSS_EXPONENT = 2 #1 #2 #loss = f*abs(y_hat-y)^LOSS_EXPONENT. 2 is mse.
 FEEDBACK_IN_EXPONENT = False #if true, loss = abs(y_hat-y)^(f*LOSS_EXPONENT)
 THRESHOLD_FEEDBACK = False #if true, loss will be -1(*alpha) or 1
+SIGN_IN_EXPONENT = False #if true, sign of f will move to exp. loss = |f|(y_hat-y)^(2*sign(f))
+assert not (FEEDBACK_IN_EXPONENT and SIGN_IN_EXPONENT) #only do one of these
 # note -- these losses were just calculated as difference in angle on pos data. 
 # but really not entirely appropriate since the loss favors cloning
 # really, it should get less loss for turning more in the right direction (not more since its farther from label)
@@ -163,6 +165,12 @@ TRIAL_STR = ""
 # ..redoing best one in terms of performance..
 # "_trial_2_scalar_10xlr___valerr=3.104_loss=-0.0035"
 # "_trial_3_scalar_10xlr___valerr=3.016_loss=-0.0040"
+# "_scalar_pow1___valerr=1.857_loss=1.405"
+# "_scalar_pow1_10xlr___valerr=2.021_loss=1.428"
+
+# invert # (sign in exp)
+# "_invert___valerr=14.94_loss=1.389"
+# "_invert_10xlr_1e-8alpha___valerr=6.976_loss=0.03103"
 
 # exp #
 # "mixed_2_100_300_20_lr=1e-6_pnet_exp" f-exp 11 epc -> err = 11.24, loss=0.3817
