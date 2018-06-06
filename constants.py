@@ -7,7 +7,7 @@ import os
 
 #loss for policy net (only comuted within pnet, and if not using fnet as loss). 
 #Note, behavioral clone settings: ALPHA = 0.0, LOSS_EXPONENT=2, THRESHOLD_FEEDBACK = True
-ALPHA = 1.0 #1e-8 #1.0 #[0,1] scale on negative feeback. (knob for making it less important. deoends on data collection. 2x neg data may reuire 0.5x).
+ALPHA = 1.0 #1e-10 #1.0 #[0,1] scale on negative feeback. (knob for making it less important. deoends on data collection. 2x neg data may reuire 0.5x).
 LOSS_EXPONENT = 2 #1 #2 #loss = f*abs(y_hat-y)^LOSS_EXPONENT. 2 is mse.
 FEEDBACK_IN_EXPONENT = False #if true, loss = abs(y_hat-y)^(f*LOSS_EXPONENT)
 THRESHOLD_FEEDBACK = False #if true, loss will be -1(*alpha) or 1
@@ -61,7 +61,7 @@ DROP_RATE = 0.0
 BATCH_NORM = False
 
 NUM_EPOCHS = 5 #1
-LRATE = 1e-6 #1e-9 
+LRATE = 1e-6 #1e-6 #1e-9 
 #with f_c = [20, 10] and conv_4: (really should've picked archtirecutre first)
 #1e-12 could try but I think I did. likely lower bound.
 #1e-9 nice curve .66 to .48 then .40 after 2epc  
@@ -144,6 +144,9 @@ TRIAL_STR = ""
 # "mixed_2_100_300_20_lr=1e-6_pnet_clone" clone 5 epc -> err = 1.915
 # "_clone_trial_2___valerr=2.014_loss=0.0035"
 # "_clone_trial_3___valerr=1.874_loss=0.0031"
+# "_clone_5xlr___valerr=2.027_loss=0.0033"
+# "_clone_10xlr___valerr=1.681_loss=0.0026"
+
 
 # SCALAR #
 # "mixed_2_100_300_20_lr=1e-6_pnet" f-scalar 5 epc -> err = 1.994
@@ -167,10 +170,19 @@ TRIAL_STR = ""
 # "_trial_3_scalar_10xlr___valerr=3.016_loss=-0.0040"
 # "_scalar_pow1___valerr=1.857_loss=1.405"
 # "_scalar_pow1_10xlr___valerr=2.021_loss=1.428"
+# "_scalar_pow1_5xlr___valerr=1.949_loss=.02638"
 
 # invert # (sign in exp)
 # "_invert___valerr=14.94_loss=1.389"
-# "_invert_10xlr_1e-8alpha___valerr=6.976_loss=0.03103"
+# "_invert_5xlr_1e-10alpha___valerr=2.949_loss=5.106e-3" (loss started incr. overfit?)
+# "_invert_10xlr_1e-8alpha___valerr=6.976_loss=0.03103" (should probs decr lr actually... later)
+# "_invert_10xlr_1e-9alpha___valerr=3.925_loss=0.01018"
+# "_invert_10xlr_1e-10alpha___valerr=2.572_loss=4.254e-3"
+# "_invert_1e-10alpha___valerr=2.615_loss=4.270e-3" ** (curve more normal than above tho)
+# "_invert_1e-9alpha___valerr=5.38_loss=.01631"
+# "_invert_1e-8alpha___valerr=4.236_loss=.01090"
+# "_invert_1e-7alpha___valerr=4.053_loss=.01014"
+# "_invert_1e-6alpha___valerr=28.24_loss=.3194"
 
 # exp #
 # "mixed_2_100_300_20_lr=1e-6_pnet_exp" f-exp 11 epc -> err = 11.24, loss=0.3817
