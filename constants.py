@@ -149,7 +149,8 @@ TRIAL_STR = ""
 # "_clone_15xlr___valerr=2.232_loss=0.0039" 
 # "_clone_20xlr___valerr=2.355_loss=0.0042" 
 # "_clone_29xlr___valerr=_loss=" #diverged, not saved (first lr diverge within 150 steps)
-
+# "_clone_10xlr_trial2___valerr=1.758_loss=0.0027"
+# "_clone_10xlr_trial3___valerr= 1.699_loss=0.0026"
 
 # SCALAR #
 # "mixed_2_100_300_20_lr=1e-6_pnet" f-scalar 5 epc -> err = 1.994
