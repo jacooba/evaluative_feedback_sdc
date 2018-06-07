@@ -146,6 +146,9 @@ TRIAL_STR = ""
 # "_clone_trial_3___valerr=1.874_loss=0.0031"
 # "_clone_5xlr___valerr=2.027_loss=0.0033"
 # "_clone_10xlr___valerr=1.681_loss=0.0026"
+# "_clone_15xlr___valerr=2.232_loss=0.0039" 
+# "_clone_20xlr___valerr=2.355_loss=0.0042" 
+# "_clone_29xlr___valerr=_loss=" #diverged, not saved (first lr diverge within 150 steps)
 
 
 # SCALAR #
@@ -171,6 +174,11 @@ TRIAL_STR = ""
 # "_scalar_pow1___valerr=1.857_loss=1.405"
 # "_scalar_pow1_10xlr___valerr=2.021_loss=1.428"
 # "_scalar_pow1_5xlr___valerr=1.949_loss=.02638"
+# "_scalar_15xlr___valerr=2.938_loss=-.0041"
+# "_scalar_20xlr___valerr=45.57_loss=0.75" #diverged, so redone
+# "_&scalar_20xlr___valerr=3.411_loss=-0.0027"
+# "_scalar_46xlr___valerr=_loss=" #diverged, not saved (had been first lr diverge within 150 steps)
+
 
 # invert # (sign in exp)
 # "_invert___valerr=14.94_loss=1.389"
